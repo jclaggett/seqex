@@ -4,7 +4,7 @@
   (:require [clojure.set :refer [intersection union]]
             [n01se.seqex.util :refer [transpose ->when ->when-not]]
             [clojure.pprint :refer [pprint]])
-  (:refer-clojure :exclude [and inc not or seq]))
+  (:refer-clojure :exclude [and not or range seq]))
 
 (alias 'clj 'clojure.core)
 
@@ -36,7 +36,7 @@
   SeqEx
   (-init [_] (-match _ 0 nil))
   (-match [_ s t]
-    [(clj/inc s)
+    [(inc s)
      (cond
        (< s  low)  Continue
        (nil? high) Satisfied
@@ -44,13 +44,33 @@
        (= s  high) Matching
        (> s  high) Invalid)]))
 
-(def n? (->Cardnality 0 1))
-(def n* (->Cardnality 0 nil))
-(def n+ (->Cardnality 1 nil))
+(def n1
+  (reify SeqEx
+    (-init [_] [Matching Continue])
+    (-match [_ s t] [Invalid s])))
+
+(def n?
+  (reify SeqEx
+    (-init [_] [Matching Satisfied])
+    (-match [_ s t] [Invalid s])))
+
+(def n*
+  (reify SeqEx
+    (-init [_] [Satisfied Satisfied])
+    (-match [_ s t] [Satisfied s])))
+
+(def n+
+  (reify SeqEx
+    (-init [_] [Satisfied Continue])
+    (-match [_ s t] [Satisfied s])))
+
 (defn nx [x] (->Cardnality x x))
 (defn nm [n m] (->Cardnality n m))
 
 ; value expressions
+(defn literal-init [v] [true Continue])
+(defn literal-match [v s t] [false (if (clj/and s (= v t)) Matching Invalid)])
+
 (extend-protocol SeqEx
   nil
   (-init [_] [Invalid Matching])
@@ -58,7 +78,8 @@
 
   clojure.lang.PersistentHashSet
   (-init [values] [true Continue])
-  (-match [values once t] [false (vbool (clj/and once (contains? values t)))])
+  (-match [values once t] [false (if (clj/and once (contains? values t))
+                                   Matching Invalid)])
 
   clojure.lang.Fn
   (-init [pred] [nil Satisfied])
@@ -69,28 +90,28 @@
   (-match [d s t] (-match @d s t))
 
   clojure.lang.Symbol
-  (-init [v] [true Continue])
-  (-match [v once t] [false (vbool (clj/and once (= v t)))])
+  (-init [value] (literal-init value))
+  (-match [value once token] (literal-match value once token))
 
   clojure.lang.Keyword
-  (-init [v] [true Continue])
-  (-match [v once t] [false (vbool (clj/and once (= v t)))])
+  (-init [value] (literal-init value))
+  (-match [value once token] (literal-match value once token))
 
   java.lang.Character
-  (-init [v] [true Continue])
-  (-match [v once t] [false (vbool (clj/and once (= v t)))])
+  (-init [value] (literal-init value))
+  (-match [value once token] (literal-match value once token))
 
   java.lang.String
-  (-init [v] [true Continue])
-  (-match [v once t] [false (vbool (clj/and once (= v t)))])
+  (-init [value] (literal-init value))
+  (-match [value once token] (literal-match value once token))
 
   java.lang.Double
-  (-init [v] [true Continue])
-  (-match [v once t] [false (vbool (clj/and once (= v t)))])
+  (-init [value] (literal-init value))
+  (-match [value once token] (literal-match value once token))
 
   java.lang.Long
-  (-init [v] [true Continue])
-  (-match [v once t] [false (vbool (clj/and once (= v t)))]))
+  (-init [value] (literal-init value))
+  (-match [value once token] (literal-match value once token)))
 
 ;; Some generic value comparison operations
 (defn gt [x] #(pos? (compare % x)))
@@ -116,11 +137,19 @@
     (-init [_] (-match _ unique-value unique-value))
     (-match [_ s t] [t (vbool (clj/or (= s unique-value) (<= s t)))])))
 
-(defn- se-inc "Sequences of incrementing numbers starting at n."
+(defn- se-range "Sequences of incrementing numbers from 0 to n-1."
   [n]
   (reify SeqEx
-    (-init [_] [n Satisfied])
-    (-match [_ s t] [(clj/inc s) (vbool (= s t))])))
+    (-init [_] [0 Continue])
+    (-match [_ s t]
+      [(inc s)
+       (if (= s t)
+         (if (< s (dec n))
+           Continue
+           (if (= s (dec n))
+             Matching
+             Invalid))
+         Invalid)])))
 
 (def unique "Sequences with no repeating values."
   (reify SeqEx
@@ -266,32 +295,15 @@
   (-match [ses paths token] (serial-match ses paths token)))
 
 (defn se-seq
-  "Sequence is constrained by each seqex in order."
-  [seqexes]
-  (cons (se-and (se-inc 0)
-             (nx (count seqexes)))
-        seqexes))
-
-;; Convenience functions
-(defn o   [& ses] (se-seq ses))
-(defn o?  [& ses] [n? (se-seq ses)])
-(defn o*  [& ses] [n* (se-seq ses)])
-(defn o+  [& ses] [n+ (se-seq ses)])
-(defn ox  [x & ses] [(nx x) (se-seq ses)])
-(defn onm [n m & ses] [(nm n m) (se-seq ses)])
-
-(defn u   [& ses] (cons (nx 1) ses))
-(defn u?  [& ses] (cons n? ses))
-(defn u*  [& ses] (cons n* ses))
-(defn u+  [& ses] (cons n+ ses))
-(defn ux  [x & ses] (cons (nx x) ses))
-(defn unm [n m & ses] (cons (nm n m) ses))
+ "Sequence is constrained by each seqex in order."
+ [& seqexes]
+ (cons (se-range (count seqexes)) seqexes))
 
 ;; Rename all the se-* expressions that overwrite built in names. Do this near
 ;; the bottom of the file so as to reduce the chance of accidentally using
 ;; those expressions during implementation.
 (def and se-and)
-(def inc se-inc)
 (def not se-not)
 (def or se-or)
+(def range se-range)
 (def seq se-seq)

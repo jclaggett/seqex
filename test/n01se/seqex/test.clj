@@ -1,8 +1,6 @@
 (ns n01se.seqex.test
   (:require [n01se.seqex :as se
-             :refer [  n? n* n+ nx nm
-                     o o? o* o+ ox onm
-                     u u? u* u+ ux unm]])
+             :refer [n1 n? n* n+ nx nm]])
   (:use [clojure.test]))
 
 ; Unit testing.
@@ -21,14 +19,23 @@
 
 (def ! not=) ;; yes, I am that lazy :-)
 
-(defn check [se & test-pairs]
-  (doseq [[op input] (partition 2 test-pairs)]
-    (is (op (validate se input) true) (str ({= '= ! '!} op) " " input))))
+(defmacro check
+  [se & test-pairs]
+  (let [se-val (gensym "se")]
+  `(let [~se-val ~se]
+     ~@(for [[op input] (partition 2 test-pairs)
+             :let [is-str (str se " " op " \"" input "\"")]]
+         `(is (~op (validate ~se-val ~input) true) ~is-str)))))
 
 (deftest length
   (check nil
          = ""
          ! "a")
+  (check n1
+         ! ""
+         = "a"
+         ! "ab"
+         ! "abc")
   (check n?
          = ""
          = "a"
@@ -100,7 +107,9 @@
          = [0 1 3 5 7 11]
          = [0 1 1 1 2 3]
          ! [0 1 1 0 2 3])
-  (check (se/inc 0)
+  (check (se/range 7)
+         ! [0 1 2]
+         ! [0 1 2 3 4]
          = [0 1 2 3 4 5 6]
          ! [0 1 3 5 7 11]
          ! [0 1 1 1 2 3]
@@ -123,39 +132,80 @@
 
 ;; stress expressions
 (deftest stress
-  (check (o? \b)
+  (check [n? \b]
          = ""
          = "b"
          ! "bb")
-  (check (o* \a (o? \b))
+  (check [n* (se/seq \a [n? \b])]
          = ""
          = "a"
          ! "b"
          = "ab"
          = "abaab"
          = "aaaaba"
-         = (repeat 1000 \a)))
+         = (repeat 100 \a)))
 
 ;; math expressions demo
-(def ws (n* se/or \space \tab))
-(defn seq-ws [& ses] (apply se/seq (interpose ws ses)))
-(defn first-or-all [[se :as ses]] (se/or se (apply se/order ses)))
-(def digits (apply n+ se/or (seq "0123456789")))
-(def number (first-or-all digits \. digits))
-(def expr (se/or nil
-                   number
-                   (o-ws \( (delay expr) \))))
+(def ws
+  "Arbitrary amount of whitespace."
+  [n* \space \tab])
+
+(defn seq-ws
+  "Sequence of expressions interposed with whitespace."
+  [& seqexes] (apply se/seq (interpose ws seqexes)))
+
+(defn first-rest*
+  "Matching the first and zero or more occurences of the rest of seq."
+  [& seqexes]
+   (let [[leader & following] (interpose ws seqexes)]
+     (se/seq leader [n* (apply se/seq following)])))
+
+(def digits
+  "At least one digit."
+  (cons n+ "0123456789"))
+
+(def number
+  "Integer or real number."
+  (se/seq digits [n? (se/seq \. digits)]))
+
+(declare add-ex)
+(def atom-ex [n1 number (seq-ws \( (delay add-ex) \) )])
+(def pow-ex (first-rest* atom-ex \^ atom-ex))
+(def mul-ex (first-rest* pow-ex [n1 \* \/] pow-ex))
+(def add-ex (first-rest* mul-ex [n1 \+ \-] mul-ex))
+(def math-ex add-ex)
 
 (deftest math-demo
+  (check ws
+         = ""
+         = " "
+         = "    "
+         ! "    x ")
+  (check (seq-ws \a \b \c)
+         = "abc"
+         = "a bc"
+         = "ab c"
+         = "a  b  c"
+         ! " abc"
+         ! "abc ")
   (check digits
          ! ""
          = "1"
          = "12"
          = "45223423")
-  (check expr
+  (check number 
+         ! ""
          = "1"
-         = "(23)"
-         = "( ( 42 ) )"))
+         = "12"
+         = "0.12"
+         = "123.567")
+  (check math-ex
+         = "1"
+         = "(23.0)"
+         = "( ( 42 ) )"
+         = "1+2"
+         = "43-12"
+         = "2^(2+2) * 12.3"))
 
 ;; misc examples
 (defn pr-test [se sym & inputs]
@@ -175,9 +225,9 @@
                "\""))))
 
 
-(def ws (apply u* " "))
-(def word (apply u+ "abcdefghijklmnopqrstuvwxyz"))
-(def end-punct (apply u ".?!"))
+(def ws (cons n* " "))
+(def word (cons n+ "abcdefghijklmnopqrstuvwxyz"))
+(def end-punct (cons n1 ".?!"))
 ;; phrase    (seq word ws phrase)
 ;; sentence  (seq phrase end-punct)
 
