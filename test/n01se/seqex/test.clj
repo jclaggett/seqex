@@ -7,12 +7,12 @@
 (defn validate
   "Constrain a sequence of tokens."
   [se tokens]
-  (loop [[state verdict] (se/-init se)
+  (loop [[state verdict] (se/-begin se)
          [token & more :as tokens] tokens]
     (if (empty? tokens)
       (se/matching? verdict)
       (if (se/continue? verdict)
-        (recur (se/-match se state token) more)
+        (recur (se/-continue se state token) more)
         ; The previous verdict indicated no continue so this
         ; token stream can never match.
         false))))
@@ -193,7 +193,7 @@
          = "1"
          = "12"
          = "45223423")
-  (check number 
+  (check number
          ! ""
          = "1"
          = "12"

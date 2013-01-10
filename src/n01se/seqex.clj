@@ -23,10 +23,10 @@
 
 (defprotocol SeqEx
   "Sequence expression protocol. Used to define things that implement seqexes."
-  (-init [_] ; return [state verdict]
-    "Initial function that returns the initial state and verdict.")
-  (-match [_ state token] ; return [state verdict matches]
-    "Matches the current token against current state.
+  (-begin [_] ; return [state verdict]
+    "Initial function that returns the beginning state and verdict.")
+  (-continue [_ state token] ; return [state verdict matches]
+    "Continue sequence by matching the current token against current state.
     Returns new state and verdict."))
 
 ; Sequence Expression Library.
@@ -34,8 +34,8 @@
 ; Simple cardnality expressions
 (defrecord Cardnality [low high]
   SeqEx
-  (-init [_] (-match _ 0 nil))
-  (-match [_ s t]
+  (-begin [_] (-continue _ 0 nil))
+  (-continue [_ s t]
     [(inc s)
      (cond
        (< s  low)  Continue
@@ -46,72 +46,72 @@
 
 (def n1
   (reify SeqEx
-    (-init [_] [Matching Continue])
-    (-match [_ s t] [Invalid s])))
+    (-begin [_] [Matching Continue])
+    (-continue [_ s t] [Invalid s])))
 
 (def n?
   (reify SeqEx
-    (-init [_] [Matching Satisfied])
-    (-match [_ s t] [Invalid s])))
+    (-begin [_] [Matching Satisfied])
+    (-continue [_ s t] [Invalid s])))
 
 (def n*
   (reify SeqEx
-    (-init [_] [Satisfied Satisfied])
-    (-match [_ s t] [Satisfied s])))
+    (-begin [_] [Satisfied Satisfied])
+    (-continue [_ s t] [Satisfied s])))
 
 (def n+
   (reify SeqEx
-    (-init [_] [Satisfied Continue])
-    (-match [_ s t] [Satisfied s])))
+    (-begin [_] [Satisfied Continue])
+    (-continue [_ s t] [Satisfied s])))
 
 (defn nx [x] (->Cardnality x x))
 (defn nm [n m] (->Cardnality n m))
 
 ; value expressions
-(defn literal-init [v] [true Continue])
-(defn literal-match [v s t] [false (if (clj/and s (= v t)) Matching Invalid)])
+(defn literal-begin [v] [true Continue])
+(defn literal-continue [v s t] [false (if (clj/and s (= v t)) Matching Invalid)])
 
 (extend-protocol SeqEx
   nil
-  (-init [_] [Invalid Matching])
-  (-match [_ s t] [Invalid Invalid])
+  (-begin [_] [Invalid Matching])
+  (-continue [_ s t] [Invalid Invalid])
 
   clojure.lang.PersistentHashSet
-  (-init [values] [true Continue])
-  (-match [values once t] [false (if (clj/and once (contains? values t))
+  (-begin [values] [true Continue])
+  (-continue [values once t] [false (if (clj/and once (contains? values t))
                                    Matching Invalid)])
 
   clojure.lang.Fn
-  (-init [pred] [nil Satisfied])
-  (-match [pred s t] [s (vbool (pred t))])
+  (-begin [pred] [nil Satisfied])
+  (-continue [pred s t] [s (vbool (pred t))])
 
   clojure.lang.Delay
-  (-init [d] (-init @d))
-  (-match [d s t] (-match @d s t))
+  (-begin [d] (-begin @d))
+  (-continue [d s t] (-continue @d s t))
 
   clojure.lang.Symbol
-  (-init [value] (literal-init value))
-  (-match [value once token] (literal-match value once token))
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
 
   clojure.lang.Keyword
-  (-init [value] (literal-init value))
-  (-match [value once token] (literal-match value once token))
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
 
   java.lang.Character
-  (-init [value] (literal-init value))
-  (-match [value once token] (literal-match value once token))
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
 
   java.lang.String
-  (-init [value] (literal-init value))
-  (-match [value once token] (literal-match value once token))
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
 
   java.lang.Double
-  (-init [value] (literal-init value))
-  (-match [value once token] (literal-match value once token))
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
 
   java.lang.Long
-  (-init [value] (literal-init value))
-  (-match [value once token] (literal-match value once token)))
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token)))
 
 ;; Some generic value comparison operations
 (defn gt [x] #(pos? (compare % x)))
@@ -124,24 +124,24 @@
 
 ; Stateful token value expressions
 
-; Unique value used by vary for its initial state.
+; Unique value used by vary and asc for initial state.
 (def unique-value (Object.))
 
 (def vary "Sequences containing non-consecutive equal values."
   (reify SeqEx
-    (-init [_] (-match _ nil unique-value))
-    (-match [_ s t] [t (vbool (not= s t))])))
+    (-begin [_] (-continue _ nil unique-value))
+    (-continue [_ s t] [t (vbool (not= s t))])))
 
 (def asc "Sequences of values greater than or equal to previous values."
   (reify SeqEx
-    (-init [_] (-match _ unique-value unique-value))
-    (-match [_ s t] [t (vbool (clj/or (= s unique-value) (<= s t)))])))
+    (-begin [_] (-continue _ unique-value unique-value))
+    (-continue [_ s t] [t (vbool (clj/or (= s unique-value) (<= s t)))])))
 
 (defn- se-range "Sequences of incrementing numbers from 0 to n-1."
   [n]
   (reify SeqEx
-    (-init [_] [0 Continue])
-    (-match [_ s t]
+    (-begin [_] [0 Continue])
+    (-continue [_ s t]
       [(inc s)
        (if (= s t)
          (if (< s (dec n))
@@ -153,8 +153,8 @@
 
 (def unique "Sequences with no repeating values."
   (reify SeqEx
-    (-init [_] [#{} Satisfied])
-    (-match [_ s t] [(conj s t) (vbool (clj/not (contains? s t)))])))
+    (-begin [_] [#{} Satisfied])
+    (-continue [_ s t] [(conj s t) (vbool (clj/not (contains? s t)))])))
 
 ; Higher order expressions (these take expressions as arguments).
 ; Arguably, these are the only expressions that need to be macros.
@@ -162,9 +162,9 @@
 (defn- se-not "Sequences where expression is always Invalid."
   [se]
   (reify SeqEx
-    (-init [_] (-init se))
-    (-match [_ s t]
-      (let [[s v] (-match se s t)]
+    (-begin [_] (-begin se))
+    (-continue [_ s t]
+      (let [[s v] (-continue se s t)]
         [s (vbool (= v Invalid))]))))
 
 (defn- combine-results
@@ -177,10 +177,10 @@
   "Sequences constrained by multiple expressions combined with set-op."
   [set-op & ses]
   (reify SeqEx
-    (-init [_]
-      (combine-results set-op (map #(-init %1) ses)))
-    (-match [_ s t]
-      (combine-results set-op (map #(-match %1 %2 %3) ses s (repeat t))))))
+    (-begin [_]
+      (combine-results set-op (map #(-begin %1) ses)))
+    (-continue [_ s t]
+      (combine-results set-op (map #(-continue %1 %2 %3) ses s (repeat t))))))
 
 (defn- se-and "Sequences in which all expressions are true."
   [& ses]
@@ -193,8 +193,8 @@
 (defn apply-fn "Sequences where expression is applied to (f value)."
   [f se]
   (reify SeqEx
-    (-init [_] (-init se))
-    (-match [_ s t] (-match se s (f t)))))
+    (-begin [_] (-begin se))
+    (-continue [_ s t] (-continue se s (f t)))))
 
 ; Serial expression: compose muliple seqexes such that they are applied to the
 ; sequence one at a time and limited by a seqex on the indicies of those
@@ -209,7 +209,7 @@
 (defn- root-path
   "Define the initial path."
   [superior-se]
-  [[(-init superior-se) nil (-init nil)]])
+  [[(-begin superior-se) nil (-begin nil)]])
 
 (defn- age-paths
   "Apply current token to paths"
@@ -218,7 +218,7 @@
     ;; keep only continuing paths
     (filter (fn [[ssv ise [is iv]]] (continue? iv)))
     ;; apply token to each continuing path
-    (map (fn [[ssv ise [is iv]]] [ssv ise (-match ise is token)]))
+    (map (fn [[ssv ise [is iv]]] [ssv ise (-continue ise is token)]))
     ;; remove any now invalid paths
     (remove (fn [[ssv ise [is iv]]] (invalid? iv)))))
 
@@ -229,12 +229,12 @@
   (letfn [(add [paths ss]
             (->> inferior-ses
               ;; define first (superior) half of path
-              (map-indexed (fn [idx ise] [(-match superior-se ss idx) ise]))
+              (map-indexed (fn [idx ise] [(-continue superior-se ss idx) ise]))
               ;; filter Invalid paths (= sv Invalid)
               (remove (fn [[[ss sv] ise]] (invalid? sv)))
               ;; define second (inferior) half of path
               (map (fn [[ssv ise :as path]]
-                     (conj path (-init ise))))
+                     (conj path (-begin ise))))
               (reduce inspect paths)))
 
           (inspect [paths [[ss sv] ise [is iv] :as path]]
@@ -263,36 +263,36 @@
          ; This path is matching if both superior and inferior are matching.
          (intersection Matching (intersection sv iv)))))])
 
-(defn- serial-init [[superior-se & inferior-ses]]
+(defn- serial-begin [[superior-se & inferior-ses]]
   (-> (root-path superior-se)
       (branch-paths superior-se inferior-ses)
       judge-paths))
 
-(defn- serial-match [[superior-se & inferior-ses] paths token]
+(defn- serial-continue [[superior-se & inferior-ses] paths token]
   (-> (age-paths paths token)
       (branch-paths superior-se inferior-ses)
       judge-paths))
 
 (extend-protocol SeqEx
   clojure.lang.ArraySeq
-  (-init [ses] (serial-init ses))
-  (-match [ses paths token] (serial-match ses paths token))
+  (-begin [ses] (serial-begin ses))
+  (-continue [ses paths token] (serial-continue ses paths token))
 
   clojure.lang.LazySeq
-  (-init [ses] (serial-init ses))
-  (-match [ses paths token] (serial-match ses paths token))
+  (-begin [ses] (serial-begin ses))
+  (-continue [ses paths token] (serial-continue ses paths token))
 
   clojure.lang.Cons
-  (-init [ses] (serial-init ses))
-  (-match [ses paths token] (serial-match ses paths token))
+  (-begin [ses] (serial-begin ses))
+  (-continue [ses paths token] (serial-continue ses paths token))
 
   clojure.lang.PersistentList
-  (-init [ses] (serial-init ses))
-  (-match [ses paths token] (serial-match ses paths token))
+  (-begin [ses] (serial-begin ses))
+  (-continue [ses paths token] (serial-continue ses paths token))
 
   clojure.lang.PersistentVector
-  (-init [ses] (serial-init ses))
-  (-match [ses paths token] (serial-match ses paths token)))
+  (-begin [ses] (serial-begin ses))
+  (-continue [ses paths token] (serial-continue ses paths token)))
 
 (defn se-seq
  "Sequence is constrained by each seqex in order."
