@@ -1,6 +1,7 @@
 (ns n01se.seqex.test
   (:require [n01se.seqex :as se
-             :refer [n1 n? n* n+ nx nm]])
+             :refer [n1 n? n* n+ nx nm]]
+            [criterium.core :as crit])
   (:use [clojure.test]))
 
 ; Unit testing.
