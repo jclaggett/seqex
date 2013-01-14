@@ -167,7 +167,7 @@
 
 (def number
   "Integer or real number."
-  (se/seq digits [n? (se/seq \. digits)]))
+  (se/seq [n? \+ \-] digits [n? (se/seq \. digits)]))
 
 (declare add-ex)
 (def atom-ex [n1 number (seq-ws \( (delay add-ex) \) )])
@@ -197,16 +197,19 @@
   (check number
          ! ""
          = "1"
-         = "12"
+         = "-12"
          = "0.12"
-         = "123.567")
+         = "-123.567")
   (check math-ex
          = "1"
          = "(23.0)"
          = "( ( 42 ) )"
-         = "1+2"
-         = "43-12"
-         = "2^(2+2) * 12.3"))
+         = "1++2"
+         = "43--12"
+         = "2^(2+2) * (-1/(0--1) - 12.3)"))
+
+(deftest ^:perf perf-math
+  (crit/bench (validate math-ex "2^(2+2) * (-1/(0--1) - 12.3)")))
 
 ;; misc examples
 (defn pr-test [se sym & inputs]
