@@ -7,5 +7,6 @@
   :test-selectors {:default (complement :perf), :perf :perf}
 
   ;; Use this to allow YourKit to connect:
-  ;; :jvm-opts ["-agentpath:yjp/libyjpagent.so"])
+  ;; :jvm-opts ["-agentpath:yjp/libyjpagent.so"]
+  )
 
