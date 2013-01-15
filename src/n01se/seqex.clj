@@ -239,12 +239,11 @@
 
           (inspect [paths [[ss sv] ise [is iv] :as path]]
             (-> paths
-              (->when (clj/not (contains? (:unique paths) path))
-                      (update-in [:unique] conj path)
-                      (update-in [:ordered] conj path)
+              (->when-not (contains? paths path)
+                      (conj paths path)
                       (->when (clj/and (matching? iv) (continue? sv))
                               (add ss)))))]
-    (:ordered (reduce inspect {:unique #{} :ordered []} paths))))
+    (reduce inspect [] paths)))
 
 (defn- judge-paths
   "Combine the verdicts of each path into a final verdict. Return a pair of
