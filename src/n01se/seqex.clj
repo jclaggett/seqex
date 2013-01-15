@@ -1,24 +1,23 @@
 ;clojure symbols
 (ns n01se.seqex
   "Sequence Expressions. Library for describing sequences."
-  (:require [clojure.set :refer [intersection union]]
-            [n01se.seqex.util :refer [transpose ->when ->when-not]]
+  (:require [n01se.seqex.util :refer [transpose ->when ->when-not]]
             [clojure.pprint :refer [pprint]])
   (:refer-clojure :exclude [and not or range seq]))
 
 (alias 'clj 'clojure.core)
 
 ;; Verdict Sets
-(def Invalid   #{})                    ; Not matching and don't continue.
-(def Continue  #{:continue})           ; Not matching but continue.
-(def Matching  #{:matching})           ; Matching but don't continue.
-(def Satisfied #{:matching :continue}) ; Matching and continue.
+(def Invalid   0) ; Not matching and don't continue.
+(def Continue  1) ; Not matching but continue.
+(def Matching  2) ; Matching but don't continue.
+(def Satisfied 3) ; Matching and continue.
 
 (defn vbool [v] (if v Satisfied Invalid))
 
 (defn invalid?   [v] (= v Invalid))
-(defn continue?  [v] (contains? v :continue))
-(defn matching?  [v] (contains? v :matching))
+(defn continue?  [v] (= (bit-and v Continue) Continue))
+(defn matching?  [v] (= (bit-and v Matching) Matching))
 (defn satisfied? [v] (= v Satisfied))
 
 (defprotocol SeqEx
@@ -184,11 +183,11 @@
 
 (defn- se-and "Sequences in which all expressions are true."
   [& ses]
-  (apply parallel intersection ses))
+  (apply parallel bit-and ses))
 
 (defn- se-or "Sequences in which any expressions is true."
   [& ses]
-  (apply parallel union ses))
+  (apply parallel bit-or ses))
 
 (defn apply-fn "Sequences where expression is applied to (f value)."
   [f se]
@@ -225,8 +224,8 @@
 ;; TODO I could use an ordered set data structure in branch-paths.
 (defn- branch-paths
   "Check if each path has child paths and create those paths as needed."
-  [paths superior-se inferior-ses]
-  (letfn [(add [paths ss]
+  [old-paths superior-se inferior-ses]
+  (letfn [(branch [new-paths ss]
             (->> inferior-ses
               ;; define first (superior) half of path
               (map-indexed (fn [idx ise] [(-continue superior-se ss idx) ise]))
@@ -235,32 +234,30 @@
               ;; define second (inferior) half of path
               (map (fn [[ssv ise :as path]]
                      (conj path (-begin ise))))
-              (reduce inspect paths)))
+              (reduce inspect new-paths)))
 
-          (inspect [paths [[ss sv] ise [is iv] :as path]]
-            (-> paths
-              (->when-not (contains? paths path)
-                      (conj paths path)
-                      (->when (clj/and (matching? iv) (continue? sv))
-                              (add ss)))))]
-    (reduce inspect [] paths)))
+          (inspect [new-paths [[ss sv] ise [is iv] :as path]]
+            (-> new-paths
+              (->when-not (contains? new-paths path)
+                          (conj path)
+                          (->when (clj/and (continue? sv) (matching? iv))
+                                  (branch ss)))))]
+    (reduce inspect [] old-paths)))
 
 (defn- judge-paths
   "Combine the verdicts of each path into a final verdict. Return a pair of
   paths plus final verdict."
   [paths]
   [paths
-   (apply
-     ; The final verdict is the union of each path verdict. Returns Invalid
-     ; (empty set: #{}) when no verdicts are given.
-     union
-     (for [[[ss sv] ise [is iv]] paths]
-       ; Recombine continue and matching parts of the verdict.
-       (union
-         ; This path will continue if either superior or inferior continues.
-         (intersection Continue (union sv iv))
-         ; This path is matching if both superior and inferior are matching.
-         (intersection Matching (intersection sv iv)))))])
+   (apply bit-or Invalid Invalid
+          (for [[[ss sv] ise [is iv]] paths]
+            (if (clj/or (continue? sv) (continue? iv))
+              (if (clj/and (matching? sv) (matching? iv))
+                Satisfied
+                Continue)
+              (if (clj/and (matching? sv) (matching? iv))
+                Matching
+                Invalid))))])
 
 (defn- serial-begin [[superior-se & inferior-ses]]
   (-> (root-path superior-se)
