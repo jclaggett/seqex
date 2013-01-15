@@ -196,14 +196,31 @@
     (-continue [_ s t] (-continue se s (f t)))))
 
 ; Serial expression: compose muliple seqexes such that they are applied to the
-; sequence one at a time and limited by a seqex on the indicies of those
-; seqexes. Pretty much the ultimate power in the universe :-).
+; sequence one at a time and limited by a higher order seqex on the indicies of
+; those seqexes. Pretty much the ultimate power in the universe :-).
 
 ; Example expression:
 ;   (serial unique vowels numbers symbols)
 
 ; Input strings:
 ;   ["23ei?!", "@a1"]
+
+; Key:
+;   path: [ssv ise isv] or [[ss sv] ise [is iv]]
+;   ssv: superior state + verdict
+;    ss: superior state
+;    sv: superior verdict
+;   ise: inferior seqex
+;   isv: inferior state + verdict
+;    is: inferior state
+;    iv: inferior verdict
+
+
+(defn pr-paths "Useful debugging tool."
+  [paths msg]
+  (println msg)
+  (doseq [p paths] (println "  path:" p))
+  paths)
 
 (defn- root-path
   "Define the initial path."
