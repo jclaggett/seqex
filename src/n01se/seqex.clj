@@ -7,7 +7,7 @@
 
 (alias 'clj 'clojure.core)
 
-;; Verdict Sets
+;; Verdicts
 (def Invalid   0) ; Not matching and don't continue.
 (def Continue  1) ; Not matching but continue.
 (def Matching  2) ; Matching but don't continue.
@@ -192,19 +192,19 @@
         [s (vbool (= v Invalid))]))))
 
 (defn- combine-results
-  "Combine state and verdicts using the given set operation."
-  [set-op results]
+  "Combine state and verdicts using the given bit operation."
+  [bit-op results]
   (let [[states verdicts] (transpose results)]
-    [states (apply set-op verdicts)]))
+    [states (apply bit-op verdicts)]))
 
 (defn- parallel
-  "Sequences constrained by multiple expressions combined with set-op."
-  [set-op & ses]
+  "Sequences constrained by multiple expressions combined with bit-op."
+  [bit-op & ses]
   (reify SeqEx
     (-begin [_]
-      (combine-results set-op (map #(-begin %1) ses)))
+      (combine-results bit-op (map #(-begin %1) ses)))
     (-continue [_ s t]
-      (combine-results set-op (map #(-continue %1 %2 %3) ses s (repeat t))))))
+      (combine-results bit-op (map #(-continue %1 %2 %3) ses s (repeat t))))))
 
 (defn- se-and "Sequences in which all expressions are true."
   [& ses]
@@ -239,7 +239,6 @@
 ;   isv: inferior state + verdict
 ;    is: inferior state
 ;    iv: inferior verdict
-
 
 (defn pr-paths "Useful debugging tool."
   [paths msg]
