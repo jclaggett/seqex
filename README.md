@@ -15,9 +15,37 @@ order of importance:
 4. Advanced optimizations: At some point, add an analysis stage that can
    optimize expression trees.
 
+## Defining
+Literal values are considered to match a sequence of 1 item containing that
+literal.
+
+functions are assumed to be predicates that must be true for all elements in
+a sequence.
+
+To choose between multiple seqexes, use the c1, c? etc functions:
+
+* (c1 & seqexes): matches any one of the given seqexes.
+* (c? & seqexes): matches zero or any one of the given seqexes.
+* (c+ & seqexes): matches one or more of the given seqexes in any order.
+* (c\* & seqexes): matches zero or more of the given seqexes in any order.
+* (cx x & seqexes): matches any of the seqexes exactly x times.
+* (cr [n m] & seqexes): matches any of the seqexes between n and m times.
+
+To order multiple seqexes sequentially, use the s1, s?, etc functions.
+
+* (s1 & seqexes): matches all seqexes in order.
+* (s? & seqexes): matches none or all seqexes in order.
+* (s+ & seqexes): matches all seqexes in order one or more times.
+* (s\* & seqexes): matches all seqexes in order zero or more times.
+* (sx x & seqexes): matches all seqexes in order repeated x times.
+* (sr [n m] & seqexes): matches all seqexes in order between n and m times.
+
+delays are considered sequence expressions but are not dereferenced until
+matched against the input sequence.
+
 ## Usage
 
-I'm still working on a reasonable API. For a preview, see examples below.
+TODO: I'd like to mimic re-find, re-matches, and re-seq.
 
 ### Examples
 
@@ -29,31 +57,32 @@ defining new functions and also showing circular references to create a simple
 ;; math expressions demo
 (def ws
   "Arbitrary amount of whitespace."
-  [n* \space \tab])
+  (c* \space \tab))
 
-(defn seq-ws
+(defn s1-ws
   "Sequence of expressions interposed with whitespace."
-  [& seqexes] (apply se/seq (interpose ws seqexes)))
+  [& seqexes] (apply s1 (interpose ws seqexes)))
 
-(defn first-rest*
-  "Matching the first and zero or more occurences of the rest of seq."
+(defn s1*-ws
+  "Sequence containing the first and zero or more occurences of the rest
+  interposed with ws.  first and rest are also interposed by ws."
   [& seqexes]
    (let [[leader & following] (interpose ws seqexes)]
-     (se/seq leader [n* (apply se/seq following)])))
+     (s1 leader (apply s* following))))
 
 (def digits
   "At least one digit."
-  (cons n+ "0123456789"))
+  (apply c+ "0123456789"))
 
 (def number
   "Integer or real number."
-  (se/seq digits [n? (se/seq \. digits)]))
+  (s1 (c? \+ \-) digits (s? \. digits)))
 
 (declare add-ex)
-(def atom-ex [n1 number (seq-ws \( (delay add-ex) \) )])
-(def pow-ex (first-rest* atom-ex \^ atom-ex))
-(def mul-ex (first-rest* pow-ex [n1 \* \/] pow-ex))
-(def add-ex (first-rest* mul-ex [n1 \+ \-] mul-ex))
+(def atom-ex (c1 number (s1-ws \( (delay add-ex) \) )))
+(def pow-ex (s1*-ws atom-ex \^ atom-ex))
+(def mul-ex (s1*-ws pow-ex (c1 \* \/) pow-ex))
+(def add-ex (s1*-ws mul-ex (c1 \+ \-) mul-ex))
 (def math-ex add-ex)
 
 (deftest math-demo
@@ -62,7 +91,7 @@ defining new functions and also showing circular references to create a simple
          = " "
          = "    "
          ! "    x ")
-  (check (seq-ws \a \b \c)
+  (check (s1-ws \a \b \c)
          = "abc"
          = "a bc"
          = "ab c"
@@ -77,16 +106,16 @@ defining new functions and also showing circular references to create a simple
   (check number
          ! ""
          = "1"
-         = "12"
+         = "-12"
          = "0.12"
-         = "123.567")
+         = "-123.567")
   (check math-ex
          = "1"
          = "(23.0)"
          = "( ( 42 ) )"
-         = "1+2"
-         = "43-12"
-         = "2^(2+2) * 12.3"))
+         = "1++2"
+         = "43--12"
+         = "2^(2+2) * (-1/(0--1) - 12.3)"))
 ```
 
 ## License
