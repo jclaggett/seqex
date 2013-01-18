@@ -1,6 +1,8 @@
 (ns n01se.seqex.test
   (:require [n01se.seqex :as se
-             :refer [n1 n? n* n+ nx nm]]
+             :refer [n0 n1 n? n* n+ nx nr
+                        s1 s? s* s+ sx sr
+                        c1 c? c* c+ cx cr ]]
             [criterium.core :as crit])
   (:use [clojure.test]))
 
@@ -29,7 +31,7 @@
          `(is (~op (validate ~se-val ~input) true) ~is-str)))))
 
 (deftest length
-  (check nil
+  (check n0
          = ""
          ! "a")
   (check n1
@@ -59,7 +61,7 @@
          ! "ab"
          = "abc"
          ! "abcd")
-  (check (nm 2 4)
+  (check (nr 2 4)
          ! ""
          ! "a"
          = "ab"
@@ -67,18 +69,7 @@
          = "abcd"
          ! "abcde"))
 
-(deftest value
-  (check (set "aeiou")
-         ! ""
-         = "a"
-         = "e"
-         = "i"
-         = "o"
-         = "u"
-         ! "eee"
-         ! "uoiea"
-         ! "z"
-         ! "abe")
+(deftest fns
   (check (fn vowel? [c] ((set "aeiou") c))
          = ""
          = "o"
@@ -94,7 +85,7 @@
          ! [2]
          = [9 7 -1]))
 
-(deftest stateful-value
+(deftest misc
   (check se/vary
          = "abcdefghijklmnopqrstuvwxyz"
          = "abaca"
@@ -133,11 +124,11 @@
 
 ;; stress expressions
 (deftest stress
-  (check [n? \b]
+  (check (c? \b)
          = ""
          = "b"
          ! "bb")
-  (check [n* (se/seq \a [n? \b])]
+  (check (s* \a (c? \b))
          = ""
          = "a"
          ! "b"
@@ -149,31 +140,32 @@
 ;; math expressions demo
 (def ws
   "Arbitrary amount of whitespace."
-  [n* \space \tab])
+  (c* \space \tab))
 
-(defn seq-ws
+(defn s1-ws
   "Sequence of expressions interposed with whitespace."
-  [& seqexes] (apply se/seq (interpose ws seqexes)))
+  [& seqexes] (apply s1 (interpose ws seqexes)))
 
-(defn first-rest*
-  "Matching the first and zero or more occurences of the rest of seq."
+(defn s1*-ws
+  "Sequence containing the first and zero or more occurences of the rest
+  interposed with ws.  first and rest are also interposed by ws."
   [& seqexes]
    (let [[leader & following] (interpose ws seqexes)]
-     (se/seq leader [n* (apply se/seq following)])))
+     (s1 leader (apply s* following))))
 
 (def digits
   "At least one digit."
-  (cons n+ "0123456789"))
+  (apply c+ "0123456789"))
 
 (def number
   "Integer or real number."
-  (se/seq [n? \+ \-] digits [n? (se/seq \. digits)]))
+  (s1 (c? \+ \-) digits (s? \. digits)))
 
 (declare add-ex)
-(def atom-ex [n1 number (seq-ws \( (delay add-ex) \) )])
-(def pow-ex (first-rest* atom-ex \^ atom-ex))
-(def mul-ex (first-rest* pow-ex [n1 \* \/] pow-ex))
-(def add-ex (first-rest* mul-ex [n1 \+ \-] mul-ex))
+(def atom-ex (c1 number (s1-ws \( (delay add-ex) \) )))
+(def pow-ex (s1*-ws atom-ex \^ atom-ex))
+(def mul-ex (s1*-ws pow-ex (c1 \* \/) pow-ex))
+(def add-ex (s1*-ws mul-ex (c1 \+ \-) mul-ex))
 (def math-ex add-ex)
 
 (deftest math-demo
@@ -182,7 +174,7 @@
          = " "
          = "    "
          ! "    x ")
-  (check (seq-ws \a \b \c)
+  (check (s1-ws \a \b \c)
          = "abc"
          = "a bc"
          = "ab c"
@@ -229,9 +221,9 @@
                "\""))))
 
 
-(def ws (cons n* " "))
-(def word (cons n+ "abcdefghijklmnopqrstuvwxyz"))
-(def end-punct (cons n1 ".?!"))
+(def ws (apply c* " "))
+(def word (apply c+ "abcdefghijklmnopqrstuvwxyz"))
+(def end-punct (apply c1 ".?!"))
 ;; phrase    (seq word ws phrase)
 ;; sentence  (seq phrase end-punct)
 

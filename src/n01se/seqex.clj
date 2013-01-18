@@ -3,7 +3,7 @@
   "Sequence Expressions. Library for describing sequences."
   (:require [n01se.seqex.util :refer [transpose ->when ->when-not]]
             [clojure.pprint :refer [pprint]])
-  (:refer-clojure :exclude [and not or range seq]))
+  (:refer-clojure :exclude [and not or range]))
 
 (alias 'clj 'clojure.core)
 
@@ -31,17 +31,10 @@
 ; Sequence Expression Library.
 
 ; Simple cardnality expressions
-(defrecord Cardnality [low high]
-  SeqEx
-  (-begin [_] (-continue _ 0 nil))
-  (-continue [_ s t]
-    [(inc s)
-     (cond
-       (< s  low)  Continue
-       (nil? high) Satisfied
-       (< s  high) Satisfied
-       (= s  high) Matching
-       (> s  high) Invalid)]))
+(def n0
+  (reify SeqEx
+    (-begin [_] [Invalid Matching])
+    (-continue [_ s t] [s s])))
 
 (def n1
   (reify SeqEx
@@ -63,22 +56,26 @@
     (-begin [_] [Satisfied Continue])
     (-continue [_ s t] [Satisfied s])))
 
+(defrecord Cardnality [low high]
+  SeqEx
+  (-begin [_] (-continue _ 0 nil))
+  (-continue [_ s t]
+    [(inc s)
+     (cond
+       (< s  low)  Continue
+       (nil? high) Satisfied
+       (< s  high) Satisfied
+       (= s  high) Matching
+       (> s  high) Invalid)]))
+
 (defn nx [x] (->Cardnality x x))
-(defn nm [n m] (->Cardnality n m))
+(defn nr [n m] (->Cardnality n m))
 
 ; value expressions
 (defn literal-begin [v] [true Continue])
 (defn literal-continue [v s t] [false (if (clj/and s (= v t)) Matching Invalid)])
 
 (extend-protocol SeqEx
-  nil
-  (-begin [_] [Invalid Matching])
-  (-continue [_ s t] [Invalid Invalid])
-
-  clojure.lang.PersistentHashSet
-  (-begin [values] [true Continue])
-  (-continue [values once t] [false (if (clj/and once (contains? values t))
-                                   Matching Invalid)])
 
   clojure.lang.Fn
   (-begin [pred] [nil Satisfied])
@@ -87,6 +84,10 @@
   clojure.lang.Delay
   (-begin [d] (-begin @d))
   (-continue [d s t] (-continue @d s t))
+
+  nil
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
 
   clojure.lang.Symbol
   (-begin [value] (literal-begin value))
@@ -109,6 +110,30 @@
   (-continue [value once token] (literal-continue value once token))
 
   java.lang.Long
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
+
+  clojure.lang.PersistentHashSet
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
+
+  clojure.lang.ArraySeq
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
+
+  clojure.lang.LazySeq
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
+
+  clojure.lang.Cons
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
+
+  clojure.lang.PersistentList
+  (-begin [value] (literal-begin value))
+  (-continue [value once token] (literal-continue value once token))
+
+  clojure.lang.PersistentVector
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token)))
 
@@ -225,7 +250,7 @@
 (defn- root-path
   "Define the initial path."
   [superior-se]
-  [[(-begin superior-se) nil (-begin nil)]])
+  [[(-begin superior-se) n0 (-begin n0)]])
 
 (defn- age-paths
   "Apply current token to paths"
@@ -276,41 +301,31 @@
                 Matching
                 Invalid))))])
 
-(defn- serial-begin [[superior-se & inferior-ses]]
-  (-> (root-path superior-se)
+(defrecord Serial [superior-se inferior-ses]
+  SeqEx
+  (-begin [_]
+    (-> (root-path superior-se)
       (branch-paths superior-se inferior-ses)
       judge-paths))
 
-(defn- serial-continue [[superior-se & inferior-ses] paths token]
-  (-> (age-paths paths token)
+  (-continue [_ paths token]
+    (-> (age-paths paths token)
       (branch-paths superior-se inferior-ses)
-      judge-paths))
+      judge-paths)))
 
-(extend-protocol SeqEx
-  clojure.lang.ArraySeq
-  (-begin [ses] (serial-begin ses))
-  (-continue [ses paths token] (serial-continue ses paths token))
+(defn c1 [& seqexes] (->Serial n1 seqexes))
+(defn c? [& seqexes] (->Serial n? seqexes))
+(defn c* [& seqexes] (->Serial n* seqexes))
+(defn c+ [& seqexes] (->Serial n+ seqexes))
+(defn cx [x & seqexes] (->Serial (nx x) seqexes))
+(defn cr [[n m] & seqexes] (->Serial (nr n m) seqexes))
 
-  clojure.lang.LazySeq
-  (-begin [ses] (serial-begin ses))
-  (-continue [ses paths token] (serial-continue ses paths token))
-
-  clojure.lang.Cons
-  (-begin [ses] (serial-begin ses))
-  (-continue [ses paths token] (serial-continue ses paths token))
-
-  clojure.lang.PersistentList
-  (-begin [ses] (serial-begin ses))
-  (-continue [ses paths token] (serial-continue ses paths token))
-
-  clojure.lang.PersistentVector
-  (-begin [ses] (serial-begin ses))
-  (-continue [ses paths token] (serial-continue ses paths token)))
-
-(defn se-seq
- "Sequence is constrained by each seqex in order."
- [& seqexes]
- (cons (se-range (count seqexes)) seqexes))
+(defn s1 [& seqexes] (->Serial (se-range (count seqexes)) seqexes))
+(defn s? [& seqexes] (c? (apply s1 seqexes)))
+(defn s* [& seqexes] (c* (apply s1 seqexes)))
+(defn s+ [& seqexes] (c+ (apply s1 seqexes)))
+(defn sx [x & seqexes] (cx x (apply s1 seqexes)))
+(defn sr [[n m] & seqexes] (nr [n m] (apply s1 seqexes)))
 
 ;; Rename all the se-* expressions that overwrite built in names. Do this near
 ;; the bottom of the file so as to reduce the chance of accidentally using
@@ -319,4 +334,4 @@
 (def not se-not)
 (def or se-or)
 (def range se-range)
-(def seq se-seq)
+
