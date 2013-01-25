@@ -7,6 +7,8 @@
 
 (alias 'clj 'clojure.core)
 
+(set! *warn-on-reflection* true)
+
 ;; Verdicts
 (def Invalid   2r00) ;; Not matching and don't continue.
 (def Continue  2r01) ;; Not matching but continue.
