@@ -8,10 +8,10 @@
 (alias 'clj 'clojure.core)
 
 ;; Verdicts
-(def Invalid   0) ; Not matching and don't continue.
-(def Continue  1) ; Not matching but continue.
-(def Matching  2) ; Matching but don't continue.
-(def Satisfied 3) ; Matching and continue.
+(def Invalid   2r00) ;; Not matching and don't continue.
+(def Continue  2r01) ;; Not matching but continue.
+(def Matching  2r10) ;; Matching but don't continue.
+(def Satisfied 2r11) ;; Matching and continue.
 
 (defn vbool [v] (if v Satisfied Invalid))
 
