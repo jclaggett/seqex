@@ -1,10 +1,10 @@
 (ns n01se.seqex.test
-  (:require [n01se.seqex :as se
-             :refer [n0 n1 n? n* n+ nx
-                        s1 s? s* s+ sx
-                        c1 c? c* c+ cx]]
-            [criterium.core :as crit])
-  (:use [clojure.test]))
+  (:require [criterium.core :as crit])
+  (:use [n01se.seqex :as se
+         :only [n0 n1 n? n* n+ nx
+                s1 s? s* s+ sx
+                c1 c? c* c+ cx]]
+        [clojure.test]))
 
 ; Unit testing.
 

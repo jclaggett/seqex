@@ -1,8 +1,8 @@
 ;clojure symbols
 (ns n01se.seqex
   "Sequence Expressions. Library for describing sequences."
-  (:require [n01se.seqex.util :refer [transpose ->when ->when-not]]
-            [clojure.pprint :refer [pprint]])
+  (:use [n01se.seqex.util :only [transpose ->when ->when-not]]
+        [clojure.pprint :only [pprint]])
   (:refer-clojure :exclude [and not or range]))
 
 (alias 'clj 'clojure.core)
