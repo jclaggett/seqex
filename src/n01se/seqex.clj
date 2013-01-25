@@ -68,8 +68,11 @@
        (= s  high) Matching
        (> s  high) Invalid)]))
 
-(defn nx [x] (->Cardnality x x))
-(defn nr [n m] (->Cardnality n m))
+(defn nx [x] (if (sequential? x)
+               (condp = (count x)
+                 1 (->Cardnality 0 (first x))
+                 2 (apply ->Cardnality x))
+               (->Cardnality x x)))
 
 ; value expressions
 (defn literal-begin [v] [true Continue])
@@ -317,14 +320,35 @@
 (defn c* [& seqexes] (->Serial n* seqexes))
 (defn c+ [& seqexes] (->Serial n+ seqexes))
 (defn cx [x & seqexes] (->Serial (nx x) seqexes))
-(defn cr [[n m] & seqexes] (->Serial (nr n m) seqexes))
 
 (defn s1 [& seqexes] (->Serial (se-range (count seqexes)) seqexes))
 (defn s? [& seqexes] (c? (apply s1 seqexes)))
 (defn s* [& seqexes] (c* (apply s1 seqexes)))
 (defn s+ [& seqexes] (c+ (apply s1 seqexes)))
 (defn sx [x & seqexes] (cx x (apply s1 seqexes)))
-(defn sr [[n m] & seqexes] (nr [n m] (apply s1 seqexes)))
+
+(defn matches
+  "Returns the tokens if seqex matches or nil otherwise."
+  [seqex tokens]
+  (loop [[state verdict] (-begin seqex)
+         [token & more :as tokens] tokens]
+    (if (empty? tokens)
+      (matching? verdict)
+      (if (continue? verdict)
+        (recur (-continue seqex state token) more)
+        ; The previous verdict indicated no continue so this
+        ; token stream can never match.
+        false))))
+
+;; API for using seqexes
+(defn se-find
+ "Find and return first occurance of seqex in tokens."
+  [seqex tokens]
+  )
+
+(defn se-seq [seqex tokens]
+  "Find and return a sequence of all non-overlapping occurances of seqex.")
+
 
 ;; Rename all the se-* expressions that overwrite built in names. Do this near
 ;; the bottom of the file so as to reduce the chance of accidentally using

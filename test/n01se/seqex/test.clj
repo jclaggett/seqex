@@ -1,24 +1,12 @@
 (ns n01se.seqex.test
   (:require [n01se.seqex :as se
-             :refer [n0 n1 n? n* n+ nx nr
-                        s1 s? s* s+ sx sr
-                        c1 c? c* c+ cx cr ]]
+             :refer [n0 n1 n? n* n+ nx
+                        s1 s? s* s+ sx
+                        c1 c? c* c+ cx]]
             [criterium.core :as crit])
   (:use [clojure.test]))
 
 ; Unit testing.
-(defn validate
-  "Constrain a sequence of tokens."
-  [se tokens]
-  (loop [[state verdict] (se/-begin se)
-         [token & more :as tokens] tokens]
-    (if (empty? tokens)
-      (se/matching? verdict)
-      (if (se/continue? verdict)
-        (recur (se/-continue se state token) more)
-        ; The previous verdict indicated no continue so this
-        ; token stream can never match.
-        false))))
 
 (def ! not=) ;; yes, I am that lazy :-)
 
@@ -28,7 +16,7 @@
   `(let [~se-val ~se]
      ~@(for [[op input] (partition 2 test-pairs)
              :let [is-str (str se " " op " \"" input "\"")]]
-         `(is (~op (validate ~se-val ~input) true) ~is-str)))))
+         `(is (~op (se/matches ~se-val ~input) true) ~is-str)))))
 
 (deftest length
   (check n0
@@ -61,7 +49,7 @@
          ! "ab"
          = "abc"
          ! "abcd")
-  (check (nr 2 4)
+  (check (nx [2 4])
          ! ""
          ! "a"
          = "ab"
@@ -201,7 +189,7 @@
          = "2^(2+2) * (-1/(0--1) - 12.3)"))
 
 (deftest ^:perf perf-math
-  (crit/bench (validate math-ex "2^(2+2) * (-1/(0--1) - 12.3)")))
+  (crit/bench (se/matches math-ex "2^(2+2) * (-1/(0--1) - 12.3)")))
 
 ;; misc examples
 (defn pr-test [se sym & inputs]
@@ -214,7 +202,7 @@
                inputs)]
     (println (str
                indent
-               (if (validate se input)
+               (if (se/matches se input)
                  "  = \""
                  " != \"")
                input
