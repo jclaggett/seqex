@@ -28,7 +28,9 @@
     "Initial function that returns the beginning state and verdict.")
   (-continue [_ state token] ; return [state verdict matches]
     "Continue sequence by matching the current token against current state.
-    Returns new state and verdict."))
+    Returns new state and verdict.")
+  (-end [_ state] ; return models
+    "Finish by calculating zero or more models from state."))
 
 ; Sequence Expression Library.
 
@@ -36,27 +38,32 @@
 (def n0
   (reify SeqEx
     (-begin [_] [Invalid Matching])
-    (-continue [_ s t] [s s])))
+    (-continue [_ s t] [s s])
+    (-end [_ s] nil)))
 
 (def n1
   (reify SeqEx
     (-begin [_] [Matching Continue])
-    (-continue [_ s t] [Invalid s])))
+    (-continue [_ s t] [Invalid s])
+    (-end [_ s] nil)))
 
 (def n?
   (reify SeqEx
     (-begin [_] [Matching Satisfied])
-    (-continue [_ s t] [Invalid s])))
+    (-continue [_ s t] [Invalid s])
+    (-end [_ s] nil)))
 
 (def n*
   (reify SeqEx
     (-begin [_] [Satisfied Satisfied])
-    (-continue [_ s t] [Satisfied s])))
+    (-continue [_ s t] [Satisfied s])
+    (-end [_ s] nil)))
 
 (def n+
   (reify SeqEx
     (-begin [_] [Satisfied Continue])
-    (-continue [_ s t] [Satisfied s])))
+    (-continue [_ s t] [Satisfied s])
+    (-end [_ s] nil)))
 
 (defrecord Cardnality [low high]
   SeqEx
@@ -68,7 +75,8 @@
        (nil? high) Satisfied
        (< s  high) Satisfied
        (= s  high) Matching
-       (> s  high) Invalid)]))
+       (> s  high) Invalid)])
+  (-end [_ s] nil))
 
 (defn nx [x] (if (sequential? x)
                (condp = (count x)
@@ -85,62 +93,77 @@
   clojure.lang.Fn
   (-begin [pred] [nil Satisfied])
   (-continue [pred s t] [s (vbool (pred t))])
+  (-end [_ s] nil)
 
   clojure.lang.Delay
   (-begin [d] (-begin @d))
   (-continue [d s t] (-continue @d s t))
+  (-end [_ s] nil)
 
   nil
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   clojure.lang.Symbol
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   clojure.lang.Keyword
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   java.lang.Character
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] [nil])
 
   java.lang.String
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   java.lang.Double
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   java.lang.Long
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   clojure.lang.PersistentHashSet
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   clojure.lang.ArraySeq
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   clojure.lang.LazySeq
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   clojure.lang.Cons
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   clojure.lang.PersistentList
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil)
 
   clojure.lang.PersistentVector
   (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token)))
+  (-continue [value once token] (literal-continue value once token))
+  (-end [_ s] nil))
 
 ;; Some generic value comparison operations
 (defn gt [x] #(pos? (compare % x)))
@@ -159,31 +182,36 @@
 (def vary "Sequences containing non-consecutive equal values."
   (reify SeqEx
     (-begin [_] (-continue _ nil unique-value))
-    (-continue [_ s t] [t (vbool (not= s t))])))
+    (-continue [_ s t] [t (vbool (not= s t))])
+    (-end [_ s] nil)))
 
 (def asc "Sequences of values greater than or equal to previous values."
   (reify SeqEx
     (-begin [_] (-continue _ unique-value unique-value))
-    (-continue [_ s t] [t (vbool (clj/or (= s unique-value) (<= s t)))])))
+    (-continue [_ s t] [t (vbool (clj/or (= s unique-value) (<= s t)))])
+    (-end [_ s] nil)))
 
 (defn- se-range "Sequences of incrementing numbers from 0 to n-1."
   [n]
-  (reify SeqEx
-    (-begin [_] [0 Continue])
-    (-continue [_ s t]
-      [(inc s)
-       (if (= s t)
-         (if (< s (dec n))
-           Continue
-           (if (= s (dec n))
-             Matching
-             Invalid))
-         Invalid)])))
+  (let [n-1 (dec n)]
+    (reify SeqEx
+      (-begin [_] [0 Continue])
+      (-continue [_ s t]
+        [(inc s)
+         (if (= s t)
+           (if (< s n-1)
+             Continue
+             (if (= s n-1)
+               Matching
+               Invalid))
+           Invalid)])
+      (-end [_ s] nil))))
 
 (def unique "Sequences with no repeating values."
   (reify SeqEx
     (-begin [_] [#{} Satisfied])
-    (-continue [_ s t] [(conj s t) (vbool (clj/not (contains? s t)))])))
+    (-continue [_ s t] [(conj s t) (vbool (clj/not (contains? s t)))])
+    (-end [_ s] nil)))
 
 ; Higher order expressions (these take expressions as arguments).
 ; Arguably, these are the only expressions that need to be macros.
@@ -194,7 +222,8 @@
     (-begin [_] (-begin se))
     (-continue [_ s t]
       (let [[s v] (-continue se s t)]
-        [s (vbool (= v Invalid))]))))
+        [s (vbool (= v Invalid))]))
+    (-end [_ s] nil)))
 
 (defn- combine-results
   "Combine state and verdicts using the given bit operation."
@@ -209,7 +238,8 @@
     (-begin [_]
       (combine-results bit-op (map #(-begin %1) ses)))
     (-continue [_ s t]
-      (combine-results bit-op (map #(-continue %1 %2 %3) ses s (repeat t))))))
+      (combine-results bit-op (map #(-continue %1 %2 %3) ses s (repeat t))))
+    (-end [_ s] nil)))
 
 (defn- se-and "Sequences in which all expressions are true."
   [& ses]
@@ -223,7 +253,8 @@
   [f se]
   (reify SeqEx
     (-begin [_] (-begin se))
-    (-continue [_ s t] (-continue se s (f t)))))
+    (-continue [_ s t] (-continue se s (f t)))
+    (-end [_ s] (-end se s))))
 
 ; Serial expression: compose muliple seqexes such that they are applied to the
 ; sequence one at a time and limited by a higher order seqex on the indicies of
@@ -254,7 +285,7 @@
 (defn- root-path
   "Define the initial path."
   [superior-se]
-  [[(-begin superior-se) n0 (-begin n0)]])
+  [[(-begin superior-se) n0 (-begin n0) nil]])
 
 (defn- age-paths
   "Apply current token to paths"
@@ -263,7 +294,7 @@
     ;; keep only continuing paths
     (filter (fn [[ssv ise [is iv]]] (continue? iv)))
     ;; apply token to each continuing path
-    (map (fn [[ssv ise [is iv]]] [ssv ise (-continue ise is token)]))
+    (map (fn [[ssv ise [is iv] models]] [ssv ise (-continue ise is token) models]))
     ;; remove any now invalid paths
     (remove (fn [[ssv ise [is iv]]] (invalid? iv)))))
 
@@ -271,15 +302,18 @@
 (defn- branch-paths
   "Check if each path has child paths and create those paths as needed."
   [old-paths superior-se inferior-ses]
-  (letfn [(branch [new-paths ss]
+  (letfn [(branch [new-paths [[old-ss old-sv] old-ise [old-is old-iv] models]]
             (->> inferior-ses
               ;; define first (superior) half of path
-              (map-indexed (fn [idx ise] [(-continue superior-se ss idx) ise]))
+              (map-indexed (fn [idx ise] [(-continue superior-se old-ss idx)
+                                          ise]))
               ;; filter Invalid paths (= sv Invalid)
               (remove (fn [[[ss sv] ise]] (invalid? sv)))
               ;; define second (inferior) half of path
               (map (fn [[ssv ise :as path]]
-                     (conj path (-begin ise))))
+                     (-> path
+                         (conj (-begin ise))
+                         (conj (concat models (-end old-ise old-is))))))
               (reduce inspect new-paths)))
 
           (inspect [new-paths [[ss sv] ise [is iv] :as path]]
@@ -287,7 +321,7 @@
               (->when-not (contains? new-paths path)
                           (conj path)
                           (->when (clj/and (continue? sv) (matching? iv))
-                                  (branch ss)))))]
+                                  (branch path)))))]
     (reduce inspect [] old-paths)))
 
 (defn- judge-paths
@@ -311,18 +345,22 @@
     (-> (root-path superior-se)
       (branch-paths superior-se inferior-ses)
       judge-paths))
-
   (-continue [_ paths token]
     (-> (age-paths paths token)
       (branch-paths superior-se inferior-ses)
-      judge-paths)))
+      judge-paths))
+  (-end [_ [[ssv ise [is iv] models :as path] :as paths]]
+    (when-not (empty? paths)
+      (concat models (-end ise is)))))
 
+;; choosing expressions
 (defn c1 [& seqexes] (->Serial n1 seqexes))
 (defn c? [& seqexes] (->Serial n? seqexes))
 (defn c* [& seqexes] (->Serial n* seqexes))
 (defn c+ [& seqexes] (->Serial n+ seqexes))
 (defn cx [x & seqexes] (->Serial (nx x) seqexes))
 
+;; sequence expressions
 (defn s1 [& seqexes] (->Serial (se-range (count seqexes)) seqexes))
 (defn s? [& seqexes] (c? (apply s1 seqexes)))
 (defn s* [& seqexes] (c* (apply s1 seqexes)))
@@ -330,17 +368,27 @@
 (defn sx [x & seqexes] (cx x (apply s1 seqexes)))
 
 (defn matches
-  "Returns the tokens if seqex matches or nil otherwise."
+  "Returns tokens if tokens match seqex or nil otherwise. If additional
+  capturing occurs, returns sequence of matches with behavior similar to
+  re-groups."
   [seqex tokens]
-  (loop [[state verdict] (-begin seqex)
-         [token & more :as tokens] tokens]
-    (if (empty? tokens)
-      (matching? verdict)
-      (if (continue? verdict)
-        (recur (-continue seqex state token) more)
-        ; The previous verdict indicated no continue so this
-        ; token stream can never match.
-        false))))
+  (let [group-seqex seqex]
+    (loop [[state verdict] (-begin group-seqex)
+           [token & more :as tokens] tokens]
+      (if (empty? tokens)
+        (if (matching? verdict)
+          (let [groups (-end group-seqex state)]
+            (if (= (count groups) 1)
+              (first groups)
+              groups)
+            true ;; just for now
+            )
+          nil)
+        (if (continue? verdict)
+          (recur (-continue group-seqex state token) more)
+          ; The previous verdict indicated no continue so this
+          ; token stream can never match.
+          nil)))))
 
 ;; API for using seqexes
 (defn se-find
