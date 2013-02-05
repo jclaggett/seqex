@@ -10,13 +10,16 @@
 
 (def ! not=) ;; yes, I am that lazy :-)
 
+(defn validate [seqex input]
+  (not (nil? (se/matches seqex input))))
+
 (defmacro check
   [se & test-pairs]
   (let [se-val (gensym "se")]
   `(let [~se-val ~se]
      ~@(for [[op input] (partition 2 test-pairs)
              :let [is-str (str se " " op " \"" input "\"")]]
-         `(is (~op (se/matches ~se-val ~input) true) ~is-str)))))
+         `(is (~op (validate ~se-val ~input) true) ~is-str)))))
 
 (deftest length
   (check n0
@@ -147,7 +150,7 @@
 
 (def number
   "Integer or real number."
-  (s1 (c? \+ \-) digits (s? \. digits)))
+  (se/cap (s1 (c? \+ \-) digits (s? \. digits))))
 
 (declare add-ex)
 (def atom-ex (c1 number (s1-ws \( (delay add-ex) \) )))
@@ -155,6 +158,8 @@
 (def mul-ex (s1*-ws pow-ex (c1 \* \/) pow-ex))
 (def add-ex (s1*-ws mul-ex (c1 \+ \-) mul-ex))
 (def math-ex add-ex)
+
+(def big-example "2^(2+2) * (-1/(0--1) - 12.3)")
 
 (deftest math-demo
   (check ws
@@ -186,10 +191,18 @@
          = "( ( 42 ) )"
          = "1++2"
          = "43--12"
-         = "2^(2+2) * (-1/(0--1) - 12.3)"))
+         = big-example))
+
+(deftest capturing
+  (is (= (se/matches \1 "1") "1"))
+  (is (= (se/matches \1 "2") nil))
+  (is (= (se/matches (se/cap \1) "1") ["1" "1"]))
+  (is (= (se/matches (se/cap \1) "2") nil))
+  (is (= (se/matches math-ex big-example)
+         [big-example "2" "2" "2" "-1" "0" "-1" "12.3"])))
 
 (deftest ^:perf perf-math
-  (crit/bench (se/matches math-ex "2^(2+2) * (-1/(0--1) - 12.3)")))
+  (crit/bench (validate math-ex big-example)))
 
 ;; misc examples
 (defn pr-test [se sym & inputs]
@@ -202,7 +215,7 @@
                inputs)]
     (println (str
                indent
-               (if (se/matches se input)
+               (if (validate se input)
                  "  = \""
                  " != \"")
                input
