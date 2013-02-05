@@ -98,7 +98,7 @@
   clojure.lang.Delay
   (-begin [d] (-begin @d))
   (-continue [d s t] (-continue @d s t))
-  (-end [_ s] nil)
+  (-end [d s] (-end @d s))
 
   nil
   (-begin [value] (literal-begin value))
@@ -118,7 +118,7 @@
   java.lang.Character
   (-begin [value] (literal-begin value))
   (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] [nil])
+  (-end [_ s] nil)
 
   java.lang.String
   (-begin [value] (literal-begin value))
