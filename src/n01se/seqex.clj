@@ -367,6 +367,49 @@
 (defn s+ [& seqexes] (c+ (apply s1 seqexes)))
 (defn sx [x & seqexes] (cx x (apply s1 seqexes)))
 
+(defn fcap
+  "Calls f with a single argument of the data captured by seqex, or if
+  seqex captures nothing the matched tokens.  Captures the result of f."
+  [f seqex]
+  (reify SeqEx
+    (-begin [_]
+      (let [[state verdict] (-begin seqex)]
+        [[state []] verdict]))
+    (-continue [_ [state tokens] token]
+      (let [[state verdict] (-continue seqex state token)]
+        [[state (conj tokens token)] verdict]))
+    (-end [_ [state tokens]]
+      (f (clj/or (-end seqex state) tokens)))))
+
+;; API for using seqexes
+(defn exec
+  "Apply a seqex to a series of tokens. Returns nil on failure or the
+  results of (-end seqex) on success."
+  [seqex tokens]
+  (loop [[state verdict] (-begin seqex)
+         [token & more :as ts] tokens]
+    (if (empty? ts)
+      (if (matching? verdict)
+        [(-end seqex state) Matching]
+        [nil Invalid])
+
+      (if (continue? verdict)
+        (recur (-continue seqex state token) more)
+        [nil Invalid]))))
+
+(defn seqex
+  "Matches a single sequential token, matching seqex on its contents.
+  This is a sort of 'descend' operation for matching nested data."
+  [seqex]
+  (reify SeqEx
+    (-begin [_] [nil Continue])
+    (-continue [_ _ token]
+      (if (coll? token)
+        (exec seqex (seq token))
+        [nil Invalid]))
+    (-end [_ result]
+      result)))
+
 ;; Capturing seqexes
 (defn cap
   [seqex]
@@ -380,31 +423,19 @@
     (-end [_ [s capts]]
       (cons capts (-end seqex s)))))
 
-;; API for using seqexes
 (defn matches
-  "Returns tokens if tokens match seqex or nil otherwise. If additional
-  capturing occurs, returns sequence of matches with behavior similar to
-  re-groups."
-  [seqex orig-tokens]
-  (let [group-seqex (cap seqex)]
-    (loop [[state verdict] (-begin group-seqex)
-           [token & more :as tokens] orig-tokens]
-      (if (empty? tokens)
-        (if (matching? verdict)
-          (let [groups (-end group-seqex state)
-                groups (if (string? orig-tokens)
-                         (map (partial apply str) groups)
-                         groups)
-                groups (if (= 1 (count groups))
-                         (first groups)
-                         groups)]
-            groups)
-          nil)
-        (if (continue? verdict)
-          (recur (-continue group-seqex state token) more)
-          ; The previous verdict indicated no continue so this
-          ; token stream can never match.
-          nil)))))
+  "Returns tokens if tokens match seqex or nil otherwise. If
+  additional capturing occurs, returns sequence of matches with
+  behavior similar to re-groups."
+  [seqex tokens]
+  (let [[results] (exec (cap seqex) tokens)
+        results (if (clj/and (clj/not (nil? results)) (string? tokens))
+                  (map (partial apply str) results)
+                  results)
+        results (if (= 1 (count results))
+                  (first results)
+                  results)]
+    results))
 
 (defn se-find
  "Find and return first occurance of seqex in tokens."
