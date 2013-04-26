@@ -7,8 +7,6 @@
 
 (alias 'clj 'clojure.core)
 
-(set! *warn-on-reflection* true)
-
 ;; Verdicts
 (def Invalid   2r00) ;; Not matching and don't continue.
 (def Continue  2r01) ;; Not matching but continue.
@@ -31,6 +29,8 @@
     Returns new state and verdict.")
   (-end [_ state] ; return models
     "Finish by calculating zero or more models from state."))
+
+(set! *warn-on-reflection* true)
 
 ; Sequence Expression Library.
 
