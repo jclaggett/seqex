@@ -84,10 +84,22 @@
                  2 (apply ->Cardnality x))
                (->Cardnality x x)))
 
-; value expressions
-(defn literal-begin [v] [true Continue])
-(defn literal-continue [v s t] [false (if (clj/and s (= v t)) Matching Invalid)])
+; literal expressions
+(doseq [T [nil clojure.lang.ArraySeq clojure.lang.Keyword
+           clojure.lang.LazySeq clojure.lang.Cons
+           clojure.lang.PersistentHashSet clojure.lang.PersistentList
+           clojure.lang.PersistentVector clojure.lang.Symbol
+           java.lang.Character java.lang.Double java.lang.Long
+           java.lang.String]]
+  (extend T SeqEx
+          {:-begin (constantly [true Continue])
+           :-continue (fn [literal first-time? token]
+                        [false (if (clj/and first-time? (= literal token))
+                                 Matching
+                                 Invalid)])
+           :-end (constantly nil)}))
 
+; functions and delay refs
 (extend-protocol SeqEx
   ;; Functions are treated as predicates on a single token.
   clojure.lang.Fn
@@ -102,72 +114,7 @@
   clojure.lang.Delay
   (-begin [d] (-begin @d))
   (-continue [d s t] (-continue @d s t))
-  (-end [d s] (-end @d s))
-
-  nil
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  clojure.lang.Symbol
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  clojure.lang.Keyword
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  java.lang.Character
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  java.lang.String
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  java.lang.Double
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  java.lang.Long
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  clojure.lang.PersistentHashSet
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  clojure.lang.ArraySeq
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  clojure.lang.LazySeq
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  clojure.lang.Cons
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  clojure.lang.PersistentList
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil)
-
-  clojure.lang.PersistentVector
-  (-begin [value] (literal-begin value))
-  (-continue [value once token] (literal-continue value once token))
-  (-end [_ s] nil))
+  (-end [d s] (-end @d s)))
 
 ;; Some generic value comparison operations
 (defn gt [x] #(pos? (compare % x)))
