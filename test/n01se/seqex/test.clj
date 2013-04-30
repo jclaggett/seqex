@@ -61,7 +61,7 @@
          ! "abcde"))
 
 (deftest fns
-  (check (fn vowel? [c] ((set "aeiou") c))
+  (check (c* (fn vowel? [c] ((set "aeiou") c)))
          = ""
          = "o"
          = "aa"
@@ -69,7 +69,7 @@
          = "uoiea"
          ! "z"
          ! "abe")
-  (check odd?
+  (check (c* odd?)
          = []
          = [1 3 5]
          ! [1 3 4]
@@ -99,16 +99,16 @@
          ! [0 1 1 0 2 3]))
 
 (deftest logic
-  (check (se/not odd?)
+  (check (se/not (c* odd?))
          = [2 4 6]
          ! [1]
          = [])
-  (check (se/or odd? pos?)
+  (check (se/or (c* odd?) (c* pos?))
          = [1 2 3]
          ! [-2]
          = [-1]
          ! [0])
-  (check (se/and odd? pos?)
+  (check (se/and (c* odd?) (c* pos?))
          ! [0]
          ! [-1 -3 -5]
          = [1 3 5]))

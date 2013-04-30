@@ -89,12 +89,16 @@
 (defn literal-continue [v s t] [false (if (clj/and s (= v t)) Matching Invalid)])
 
 (extend-protocol SeqEx
-
+  ;; Functions are treated as predicates on a single token.
   clojure.lang.Fn
-  (-begin [pred] [nil Satisfied])
-  (-continue [pred s t] [s (vbool (pred t))])
-  (-end [_ s] nil)
+  (-begin [_] [true Continue])
+  (-continue [pred first-time? token]
+    [false (if (clj/and first-time? (pred token))
+             Matching
+             Invalid)])
+  (-end [_ _] nil)
 
+  ;; Delays are assumed to hold a seqex to be used.
   clojure.lang.Delay
   (-begin [d] (-begin @d))
   (-continue [d s t] (-continue @d s t))
