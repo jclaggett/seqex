@@ -3,7 +3,7 @@
   "Sequence Expressions. Library for describing sequences."
   (:use [n01se.seqex.util :only [transpose ->when ->when-not]]
         [clojure.pprint :only [pprint]])
-  (:refer-clojure :exclude [and not or range repeat + *]))
+  (:refer-clojure :exclude [and not or range]))
 
 (alias 'clj 'clojure.core)
 
@@ -189,7 +189,7 @@
     (-begin [_]
       (combine-results bit-op (map #(-begin %1) ses)))
     (-continue [_ s t]
-      (combine-results bit-op (map #(-continue %1 %2 %3) ses s (clj/repeat t))))
+      (combine-results bit-op (map #(-continue %1 %2 %3) ses s (repeat t))))
     (-end [_ s] nil)))
 
 (defn- se-and "Sequences in which all expressions are true."
@@ -306,27 +306,25 @@
 
 ;; New API
 
-(defn order "All seqexes in order." [& seqexes]
+(defn ord "All seqexes in order." [& seqexes]
   (->Serial (se-range (count seqexes)) seqexes))
-(defn alternate "Alternate between seqexes (pick any one)." [& seqexes]
+(defn alt "Alternate between seqexes (pick any one)." [& seqexes]
   (->Serial n1 seqexes))
-(defn optional "Optionally alternate between seqexes." [& seqexes]
+(defn opt "Optionally alternate between seqexes." [& seqexes]
   (->Serial n? seqexes))
-(defn repeat+ "One or more seqexes (in any order)." [& seqexes]
+(defn qty+ "One or more seqexes (in any order)." [& seqexes]
   (->Serial n+ seqexes))
-(defn repeat* "Zero or more seqexes (in any order)." [& seqexes]
+(defn qty* "Zero or more seqexes (in any order)." [& seqexes]
   (->Serial n* seqexes))
-(defn se-repeat "Repeat seqexes x times." [x & seqexes]
+(defn qty
+  "Repeat seqexes x times. If x is a single number, then repeat exactly that
+  many times. If x is a sequence of two numbers then repeat between the first
+  and second number of times. Finally, if x is a sequence of 1 number, repeat
+  between 0 and that number of times."
+  [x & seqexes]
   (->Serial (nx x) seqexes))
 (defn all "All seqexes in any order." [& seqexes]
   (->Serial (nx (count seqexes)) seqexes))
-
-;; Symbolic representations
-(def >> order)
-(def | alternate)
-(def ? optional)
-(def se+ repeat+)
-(def se* repeat*)
 
 ;; Old API
 
@@ -440,7 +438,4 @@
 (def not se-not)
 (def or se-or)
 (def range se-range)
-(def + se+)
-(def * se*)
-(def repeat se-repeat)
 
