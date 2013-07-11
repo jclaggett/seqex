@@ -1,17 +1,11 @@
 (ns n01se.seqex.test
-  (:require [criterium.core :as crit])
-  (:use [n01se.seqex :as se
-         :only [n0 n1 n? n* n+ nx
-                s1 s? s* s+ sx
-                c1 c? c* c+ cx]]
-        [clojure.test]))
+  (:require [criterium.core :as crit]
+            [n01se.seqex :as se])
+  (:use [clojure.test]))
 
 ; Unit testing.
 
 (def ! not=) ;; yes, I am that lazy :-)
-
-(defn validate [seqex input]
-  (not (nil? (se/matches seqex input))))
 
 (defmacro check
   [se & test-pairs]
@@ -19,40 +13,40 @@
   `(let [~se-val ~se]
      ~@(for [[op input] (partition 2 test-pairs)
              :let [is-str (str se " " op " \"" input "\"")]]
-         `(is (~op (validate ~se-val ~input) true) ~is-str)))))
+         `(is (~op (se/valid? ~se-val ~input) true) ~is-str)))))
 
 (deftest length
-  (check n0
+  (check se/n0
          = ""
          ! "a")
-  (check n1
+  (check se/n1
          ! ""
          = "a"
          ! "ab"
          ! "abc")
-  (check n?
+  (check se/n?
          = ""
          = "a"
          ! "ab"
          ! "abc")
-  (check n*
+  (check se/n*
          = ""
          = "a"
          = "abc"
          = (repeat 100 \b))
-  (check n+
+  (check se/n+
          ! ""
          = "a"
          = "ab"
          = "abc"
          = (repeat 100 \b))
-  (check (nx 3)
+  (check (se/nx 3)
          ! ""
          ! "a"
          ! "ab"
          = "abc"
          ! "abcd")
-  (check (nx [2 4])
+  (check (se/nx [2 4])
          ! ""
          ! "a"
          = "ab"
@@ -61,16 +55,16 @@
          ! "abcde"))
 
 (deftest fns
-  (check (c* (fn vowel? [c] ((set "aeiou") c)))
-         = ""
+  (check (fn vowel? [c] ((set "aeiou") c))
+         ! ""
          = "o"
          = "aa"
          = "eee"
          = "uoiea"
          ! "z"
          ! "abe")
-  (check (c* odd?)
-         = []
+  (check odd?
+         ! []
          = [1 3 5]
          ! [1 3 4]
          ! [2]
@@ -99,27 +93,27 @@
          ! [0 1 1 0 2 3]))
 
 (deftest logic
-  (check (se/not (c* odd?))
+  (check (se/not (se/qty* odd?))
          = [2 4 6]
          ! [1]
-         = [])
-  (check (se/or (c* odd?) (c* pos?))
+         ! [])
+  (check (se/or (se/qty* odd?) (se/qty* pos?))
          = [1 2 3]
          ! [-2]
          = [-1]
          ! [0])
-  (check (se/and (c* odd?) (c* pos?))
+  (check (se/and (se/qty* odd?) (se/qty* pos?))
          ! [0]
          ! [-1 -3 -5]
          = [1 3 5]))
 
 ;; stress expressions
 (deftest stress
-  (check (c? \b)
+  (check (se/? \b)
          = ""
          = "b"
          ! "bb")
-  (check (s* \a (c? \b))
+  (check (se/* (se/>> \a (se/? \b)))
          = ""
          = "a"
          ! "b"
@@ -131,33 +125,33 @@
 ;; math expressions demo
 (def ws
   "Arbitrary amount of whitespace."
-  (c* \space \tab))
+  (se/* \space \tab))
 
-(defn s1-ws
+(defn >ws>
   "Sequence of expressions interposed with whitespace."
-  [& seqexes] (apply s1 (interpose ws seqexes)))
+  [& seqexes] (apply se/>> (interpose ws seqexes)))
 
-(defn s1*-ws
-  "Sequence containing the first and zero or more occurences of the rest
-  interposed with ws.  first and rest are also interposed by ws."
+(defn >ws>+
+  "Ordered seqexes interposed with whitespace with just the first seqex
+  required."
   [& seqexes]
    (let [[leader & following] (interpose ws seqexes)]
-     (s1 leader (apply s* following))))
+     (se/>> leader (se/* (apply se/>> following)))))
 
 (def digits
   "At least one digit."
-  (apply c+ "0123456789"))
+  (apply se/+ "0123456789"))
 
 (def number
   "Integer or real number."
-  (se/cap (s1 (c? \+ \-) digits (s? \. digits))))
+  (se/cap (se/>> (se/? \+ \-) digits (se/? (se/>> \. digits)))))
 
-(declare add-ex)
-(def atom-ex (c1 number (s1-ws \( (delay add-ex) \) )))
-(def pow-ex (s1*-ws atom-ex \^ atom-ex))
-(def mul-ex (s1*-ws pow-ex (c1 \* \/) pow-ex))
-(def add-ex (s1*-ws mul-ex (c1 \+ \-) mul-ex))
-(def math-ex add-ex)
+(declare add-expr)
+(def atom-expr (se/| number (>ws> \( (delay add-expr) \) )))
+(def pow-expr (>ws>+ atom-expr \^ atom-expr))
+(def mul-expr (>ws>+ pow-expr (se/| \* \/) pow-expr))
+(def add-expr (>ws>+ mul-expr (se/| \+ \-) mul-expr))
+(def math-expr add-expr)
 
 (def big-example "2^(2+2) * (-1/(0--1) - 12.3)")
 
@@ -167,7 +161,7 @@
          = " "
          = "    "
          ! "    x ")
-  (check (s1-ws \a \b \c)
+  (check (>ws> \a \b \c)
          = "abc"
          = "a bc"
          = "ab c"
@@ -185,7 +179,7 @@
          = "-12"
          = "0.12"
          = "-123.567")
-  (check math-ex
+  (check math-expr
          = "1"
          = "(23.0)"
          = "( ( 42 ) )"
@@ -198,11 +192,11 @@
   (is (= (se/matches \1 "2") nil))
   (is (= (se/matches (se/cap \1) "1") ["1" "1"]))
   (is (= (se/matches (se/cap \1) "2") nil))
-  (is (= (se/matches math-ex big-example)
+  (is (= (se/matches math-expr big-example)
          [big-example "2" "2" "2" "-1" "0" "-1" "12.3"])))
 
 (deftest ^:perf perf-math
-  (crit/bench (validate math-ex big-example)))
+  (crit/bench (se/valid? math-expr big-example)))
 
 ;; misc examples
 (defn pr-test [se sym & inputs]
@@ -215,16 +209,16 @@
                inputs)]
     (println (str
                indent
-               (if (validate se input)
+               (if (se/valid? se input)
                  "  = \""
                  " != \"")
                input
                "\""))))
 
 
-(def ws (apply c* " "))
-(def word (apply c+ "abcdefghijklmnopqrstuvwxyz"))
-(def end-punct (apply c1 ".?!"))
+(def ws (apply se/c* " "))
+(def word (apply se/c+ "abcdefghijklmnopqrstuvwxyz"))
+(def end-punct (apply se/c1 ".?!"))
 ;; phrase    (seq word ws phrase)
 ;; sentence  (seq phrase end-punct)
 

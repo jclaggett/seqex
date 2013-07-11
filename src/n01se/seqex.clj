@@ -3,7 +3,7 @@
   "Sequence Expressions. Library for describing sequences."
   (:use [n01se.seqex.util :only [transpose ->when ->when-not]]
         [clojure.pprint :only [pprint]])
-  (:refer-clojure :exclude [and not or range]))
+  (:refer-clojure :exclude [and not or range repeat + *]))
 
 (alias 'clj 'clojure.core)
 
@@ -189,7 +189,7 @@
     (-begin [_]
       (combine-results bit-op (map #(-begin %1) ses)))
     (-continue [_ s t]
-      (combine-results bit-op (map #(-continue %1 %2 %3) ses s (repeat t))))
+      (combine-results bit-op (map #(-continue %1 %2 %3) ses s (clj/repeat t))))
     (-end [_ s] nil)))
 
 (defn- se-and "Sequences in which all expressions are true."
@@ -304,6 +304,32 @@
     (when-not (empty? paths)
       (concat models (-end ise is)))))
 
+;; New API
+
+(defn order "All seqexes in order." [& seqexes]
+  (->Serial (se-range (count seqexes)) seqexes))
+(defn alternate "Alternate between seqexes (pick any one)." [& seqexes]
+  (->Serial n1 seqexes))
+(defn optional "Optionally alternate between seqexes." [& seqexes]
+  (->Serial n? seqexes))
+(defn repeat+ "One or more seqexes (in any order)." [& seqexes]
+  (->Serial n+ seqexes))
+(defn repeat* "Zero or more seqexes (in any order)." [& seqexes]
+  (->Serial n* seqexes))
+(defn se-repeat "Repeat seqexes x times." [x & seqexes]
+  (->Serial (nx x) seqexes))
+(defn all "All seqexes in any order." [& seqexes]
+  (->Serial (nx (count seqexes)) seqexes))
+
+;; Symbolic representations
+(def >> order)
+(def | alternate)
+(def ? optional)
+(def se+ repeat+)
+(def se* repeat*)
+
+;; Old API
+
 ;; choosing expressions
 (defn c1 [& seqexes] (->Serial n1 seqexes))
 (defn c? [& seqexes] (->Serial n? seqexes))
@@ -317,6 +343,19 @@
 (defn s* [& seqexes] (c* (apply s1 seqexes)))
 (defn s+ [& seqexes] (c+ (apply s1 seqexes)))
 (defn sx [x & seqexes] (cx x (apply s1 seqexes)))
+
+;; Capturing seqexes
+(defn cap
+  [seqex]
+  (reify SeqEx
+    (-begin [_]
+      (let [[s v] (-begin seqex)]
+        [[s []] v]))
+    (-continue [_ [s capts] t]
+      (let [[s v] (-continue seqex s t)]
+        [[s (conj capts t)] v]))
+    (-end [_ [s capts]]
+      (cons capts (-end seqex s)))))
 
 (defn fcap
   "Calls f with a single argument of the data captured by seqex, or if
@@ -334,8 +373,8 @@
 
 ;; API for using seqexes
 (defn exec
-  "Apply a seqex to a series of tokens. Returns nil on failure or the
-  results of (-end seqex) on success."
+  "Apply a seqex to a series of tokens. Returns results of (-end seqex) and a
+  verdict of Matching or Invalid."
   [seqex tokens]
   (loop [[state verdict] (-begin seqex)
          [token & more :as ts] tokens]
@@ -348,7 +387,17 @@
         (recur (-continue seqex state token) more)
         [nil Invalid]))))
 
-(defn seqex
+(defn valid?
+  "Returns true when tokens are a valid input for seqex."
+  [seqex tokens]
+  (matching? (second (exec seqex tokens))))
+
+(defn model
+  "Executes seqex against tokens returning any captured model."
+  [seqex tokens]
+  (first (exec seqex tokens)))
+
+(defn subex
   "Matches a single sequential token, matching seqex on its contents.
   This is a sort of 'descend' operation for matching nested data."
   [seqex]
@@ -356,23 +405,10 @@
     (-begin [_] [nil Continue])
     (-continue [_ _ token]
       (if (coll? token)
-        (exec seqex (seq token))
+        (exec seqex (clj/seq token))
         [nil Invalid]))
     (-end [_ result]
       result)))
-
-;; Capturing seqexes
-(defn cap
-  [seqex]
-  (reify SeqEx
-    (-begin [_]
-      (let [[s v] (-begin seqex)]
-        [[s []] v]))
-    (-continue [_ [s capts] t]
-      (let [[s v] (-continue seqex s t)]
-        [[s (conj capts t)] v]))
-    (-end [_ [s capts]]
-      (cons capts (-end seqex s)))))
 
 (defn matches
   "Returns tokens if tokens match seqex or nil otherwise. If
@@ -404,4 +440,7 @@
 (def not se-not)
 (def or se-or)
 (def range se-range)
+(def + se+)
+(def * se*)
+(def repeat se-repeat)
 
