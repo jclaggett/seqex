@@ -142,20 +142,18 @@
   "one or more digits."
   (apply se/qty+ "0123456789"))
 
-(def integer
-  "whole number (optionally signed)."
-  (se/ord (se/opt \+ \-) digits))
-
 (def number
   "real number. (captured)"
-  (se/cap (se/ord (se/opt \+ \-)
-                  (se/alt digits
-                          (se/ord \. digits)
-                          (se/ord digits \.)
-                          (se/ord digits \. digits))
-                  (se/opt (se/ord (se/alt \e \E)
-                                  (se/opt \+ \-)
-                                  digits)))))
+  (se/recap #(Double/parseDouble (apply str %))
+            (se/cap-tokens
+              (se/ord (se/opt \+ \-)
+                      (se/alt digits
+                              (se/ord \. digits)
+                              (se/ord digits \.)
+                              (se/ord digits \. digits))
+                      (se/opt (se/ord (se/alt \e \E)
+                                      (se/opt \+ \-)
+                                      digits))))))
 
 (declare add-expr)
 (def atom-expr (se/alt number (ord-ws \( (delay add-expr) \) )))
@@ -203,10 +201,10 @@
 (deftest capturing
   (is (= (se/matches \1 "1") "1"))
   (is (= (se/matches \1 "2") nil))
-  (is (= (se/matches (se/cap \1) "1") ["1" "1"]))
-  (is (= (se/matches (se/cap \1) "2") nil))
-  (is (= (se/matches math-expr big-example)
-         [big-example "2" "2" "2" "-1" "0" "-1" "12.3"])))
+  (is (= (se/matches (se/cap-tokens \1) "1") ["1" "1"]))
+  (is (= (se/matches (se/cap-tokens \1) "2") nil))
+  (is (= (se/model math-expr big-example)
+         [2.0 2.0 2.0 -1.0 0.0 -1.0 12.3])))
 
 (deftest ^:perf perf-math
   (crit/bench (se/valid? math-expr big-example)))

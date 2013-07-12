@@ -21,11 +21,11 @@
 (defn satisfied? [v] (= v Satisfied))
 
 (defprotocol SeqEx
-  "Sequence expression protocol. Used to define things that implement seqexes."
+  "Sequence expression protocol. Used by types that implement seqexes."
   (-begin [_] ; return [state verdict]
     "Initial function that returns the beginning state and verdict.")
   (-continue [_ state token] ; return [state verdict matches]
-    "Continue sequence by matching the current token against current state.
+    "Continue sequence by examining the current token using current state.
     Returns new state and verdict.")
   (-end [_ state] ; return models
     "Finish by calculating zero or more models from state."))
@@ -163,6 +163,18 @@
     (-begin [_] [#{} Satisfied])
     (-continue [_ s t] [(conj s t) (vbool (clj/not (contains? s t)))])
     (-end [_ s] nil)))
+
+(defn permute
+  "Sequence containing any permuation of elems."
+  [elems]
+  (let [s (set elems)]
+    (reify SeqEx
+      (-begin [_] [s (if (empty? s) Matching Continue)])
+      (-continue [_ s t] (if (contains? s t)
+                           (let [s (disj s t)]
+                             [s (if (empty? s) Matching Continue)])
+                           [s Invalid]))
+      (-end [_ s] nil))))
 
 ; Higher order expressions (these take expressions as arguments).
 ; Arguably, these are the only expressions that need to be macros.
@@ -323,8 +335,10 @@
   between 0 and that number of times."
   [x & seqexes]
   (->Serial (nx x) seqexes))
-(defn all "All seqexes in any order." [& seqexes]
-  (->Serial (nx (count seqexes)) seqexes))
+
+(defn all "All seqexes in any order."
+  [& seqexes]
+  (->Serial (permute (se-range (count seqexes))) seqexes))
 
 ;; Old API
 
@@ -344,30 +358,32 @@
 
 ;; Capturing seqexes
 (defn cap
-  [seqex]
-  (reify SeqEx
-    (-begin [_]
-      (let [[s v] (-begin seqex)]
-        [[s []] v]))
-    (-continue [_ [s capts] t]
-      (let [[s v] (-continue seqex s t)]
-        [[s (conj capts t)] v]))
-    (-end [_ [s capts]]
-      (cons capts (-end seqex s)))))
-
-(defn fcap
-  "Calls f with a single argument of the data captured by seqex, or if
-  seqex captures nothing the matched tokens.  Captures the result of f."
-  [f seqex]
+  "Initialize, capture, and finalize a model. The final model is added to the
+  front of any sub-models returned by seqex."
+  [m-begin m-continue m-end seqex]
   (reify SeqEx
     (-begin [_]
       (let [[state verdict] (-begin seqex)]
-        [[state []] verdict]))
-    (-continue [_ [state tokens] token]
+        [[state (m-begin)] verdict]))
+    (-continue [_ [state m] token]
       (let [[state verdict] (-continue seqex state token)]
-        [[state (conj tokens token)] verdict]))
-    (-end [_ [state tokens]]
-      (f (clj/or (-end seqex state) tokens)))))
+        [[state (m-continue m token)] verdict]))
+    (-end [_ [state m]]
+      (cons (m-end m) (-end seqex state)))))
+
+(defn cap-tokens
+  "Capture all examined tokens and return as the model."
+  [seqex]
+  (cap vector conj identity seqex))
+
+(defn recap
+  "Apply f to the returned models by seqex and return result as a single new
+  model."
+  [f seqex]
+  (reify SeqEx
+    (-begin [_] (-begin seqex))
+    (-continue [_ state token] (-continue seqex state token))
+    (-end [_ state] [(apply f (-end seqex state))])))
 
 ;; API for using seqexes
 (defn exec
@@ -413,7 +429,7 @@
   additional capturing occurs, returns sequence of matches with
   behavior similar to re-groups."
   [seqex tokens]
-  (let [[results] (exec (cap seqex) tokens)
+  (let [[results] (exec (cap-tokens seqex) tokens)
         results (if (clj/and (clj/not (nil? results)) (string? tokens))
                   (map (partial apply str) results)
                   results)
