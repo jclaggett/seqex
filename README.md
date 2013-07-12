@@ -32,26 +32,23 @@ but that will improve through use.
 These functions are available to work with Seqexes by applying them to a
 sequence of tokens.
 
-* `se/exec` : returns both the end models and a final verdict of Matching or
-Invalid.
+* `se/exec`: returns both the end models and a final verdict of Matching or Invalid.
 * `se/valid?`: returns true if the input stream matched the seqex constraints.
 * `se/model`: returns just the end models.
-
-* `se/matches`: was an attempt to mimic Clojure's matches for regular expressions.
-Don't use...
+* `se/matches`: was an attempt to mimic Clojure's matches for regular expressions. Don't use...
 
 ## Composing Seqexes
 
 Most of the time, Seqexes can be composed of the following Seqexes plus
 Clojure's standard values:
 
-* Use `se/ord` to specify an ordered sequence of seqexes.
-* Use `se/alt` to specify alternate seqexes (choosing one).
-* Use `se/opt` to specify optional seqexes (choosing zero or one).
-* Use `se/qty+` to specify one or more repeating seqexes (in any order).
-* Use `se/qty*` to specify zero or more repeating seqexes (in any order).
-* Use `se/qty` to specify an exact number of repeating seqexes (in any order).
-* Use `se/all` to specify all seqexes (in any order).
+* `se/ord`: an ordered sequence of seqexes.
+* `se/alt`: alternate seqexes (choosing one).
+* `se/opt`: optional seqexes (choosing zero or one).
+* `se/qty+`: one or more repeating seqexes (in any order).
+* `se/qty*`: zero or more repeating seqexes (in any order).
+* `se/qty`: a specific number of repeating seqexes (in any order).
+* `se/all`: all seqexes in any permutation.
 
 Clojure's standard values: numbers, characters, strings, symbols, keywords,
 lists, vectors, sets, and maps are all extended to implement the SeqEx protocol
