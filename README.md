@@ -24,7 +24,7 @@ arbitrary sequences of values (not just characters).
 The core expression engine works and can be used to describe very complex
 patterns. It is not quick compared to regexes but I've used it to parse hundreds
 of files in a few seconds. The big item missing at this point is an analyzer
-for optimizing a trees of Seqexes. I would not consider the API solid just yet
+for optimizing a sequence expression tree. I would not consider the API solid just yet
 but that will improve through use.
 
 ## Basic Concepts (verdicts and models)
