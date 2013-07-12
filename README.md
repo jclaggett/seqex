@@ -3,6 +3,14 @@
 Sequence Expressions. Similar to regular expressions but able to describe
 arbitrary sequences of values (not just characters).
 
+## Status
+
+The core expression engine works and can be used to describe very complex
+patterns. It is not quick compared to regexes but I've used it to parse hundreds
+of files in a few seconds. The big item missing at this point is an analyzer
+for optimizing a sequence expression tree. I would not consider the API solid just yet
+but that will improve through use.
+
 ## Quick Start
 
 ```clojure
@@ -19,17 +27,76 @@ arbitrary sequences of values (not just characters).
 (se/valid? word "4hello2") ;=> false
 ```
 
-## Status
+## Usage
 
-The core expression engine works and can be used to describe very complex
-patterns. It is not quick compared to regexes but I've used it to parse hundreds
-of files in a few seconds. The big item missing at this point is an analyzer
-for optimizing a sequence expression tree. I would not consider the API solid just yet
-but that will improve through use.
+These functions are available to work with Seqexes by applying them to a
+sequence of tokens.
 
-## Basic Concepts (verdicts and models)
+* `se/exec` : returns both the end models and a final verdict of Matching or
+Invalid.
+* `se/valid?`: returns true if the input stream matched the seqex constraints.
+* `se/model`: returns just the end models.
 
-### SeqEx Protocol Details
+* `se/matches`: was an attempt to mimic Clojure's matches for regular expressions.
+Don't use...
+
+## Composing Seqexes
+
+Most of the time, Seqexes can be composed of the following Seqexes plus
+Clojure's standard values:
+
+* Use `se/ord` to specify an ordered sequence of seqexes.
+* Use `se/alt` to specify alternate seqexes (choosing one).
+* Use `se/opt` to specify optional seqexes (choosing zero or one).
+* Use `se/qty+` to specify one or more repeating seqexes (in any order).
+* Use `se/qty*` to specify zero or more repeating seqexes (in any order).
+* Use `se/qty` to specify an exact number of repeating seqexes (in any order).
+* Use `se/all` to specify all seqexes (in any order).
+
+Clojure's standard values: numbers, characters, strings, symbols, keywords,
+lists, vectors, sets, and maps are all extended to implement the SeqEx protocol
+such that they match exactly one occurance of themselves. Examples:
+
+```clojure
+(se/valid? \a "a")          ;=> true
+(se/valid? \a "")           ;=> false
+(se/valid? 1 [1])           ;=> true
+(se/valid? 1 [1 1])         ;=> false
+(se/valid? {:a 1} [{:a 1}]) ;=> true
+```
+
+Functions are assumed to be predicates that must be true for all elements in a
+sequence. Functions require a non-empty sequence (But I could be convinced that
+functions always match an empty sequence too... opinions?)
+
+Recursive expressions are defined by using delays which are assumed to wrap a
+Seqex.
+
+Nested expressions (e.g., a tree structure) may be expressed with `se/subex`.
+
+### Old API (too confusing and cryptic)
+
+To choose between multiple seqexes, use the c1, c? etc functions:
+
+* (c1 & seqexes): matches any one of the given seqexes.
+* (c? & seqexes): matches zero or any one of the given seqexes.
+* (c+ & seqexes): matches one or more of the given seqexes in any order.
+* (c\* & seqexes): matches zero or more of the given seqexes in any order.
+* (cx x & seqexes): matches any of the seqexes exactly x times.
+* (cr [n m] & seqexes): matches any of the seqexes between n and m times.
+
+To order multiple seqexes sequentially, use the s1, s?, etc functions.
+
+* (s1 & seqexes): matches all seqexes in order.
+* (s? & seqexes): matches none or all seqexes in order.
+* (s+ & seqexes): matches all seqexes in order one or more times.
+* (s\* & seqexes): matches all seqexes in order zero or more times.
+* (sx x & seqexes): matches all seqexes in order repeated x times.
+* (sr [n m] & seqexes): matches all seqexes in order between n and m times.
+
+## Basic Concepts (protocols, verdicts and models)
+
+### SeqEx Protocol
 
 All sequence expressions implement the SeqEx protocol defined as three
 functions: `se/-begin`, `se/-continue`, and `se/-end`. These functions are
@@ -74,7 +141,7 @@ verdicts for the same input sequence are:
 By specifing both flags, a Seqex is able to communicate both when the input
 tokens are matching and when it is done examining the input tokens.
 
-### Model building
+### Models
 
 The second purpose of sequence expressions is to build up and return a 'model'
 based on the tokens examined. Technically, a Seqex is expected to return a
@@ -105,80 +172,11 @@ There are a lot of interesting possiblities with model building but I need to
 experiment with this before saying much more about it. I will say that combining
 constraints with arbitrary model building is quite powerful. You've been warned.
 
-## Using standard Sequence Expressions.
+### Example
 
-Most of the time, Seqexes can be composed of the following Seqexes plus
-Clojure's standard values:
-
-Use `se/ord` to specify an ordered sequence of seqexes.
-Use `se/alt` to specify alternate seqexes (choosing one).
-Use `se/opt` to specify optional seqexes (choosing zero or one).
-Use `se/qty+` to specify one or more repeating seqexes (in any order).
-Use `se/qty*` to specify zero or more repeating seqexes (in any order).
-Use `se/qty` to specify an exact number of repeating seqexes (in any order).
-Use `se/all` to specify all seqexes (in any order).
-
-Clojure's standard values: numbers, characters, strings, symbols, keywords,
-lists, vectors, sets, and maps are all extended to implement the SeqEx protocol
-such that they match exactly one occurance of themselves. Examples:
-
-```clojure
-(se/valid? \a "a")          ;=> true
-(se/valid? \a "")           ;=> false
-(se/valid? 1 [1])           ;=> true
-(se/valid? 1 [1 1])         ;=> false
-(se/valid? {:a 1} [{:a 1}]) ;=> true
-```
-
-Functions are assumed to be predicates that must be true for all elements in a
-sequence. Functions require a non-empty sequence (But I could be convinced that
-functions always match an empty sequence too... opinions?)
-
-Recursive expressions are defined by using delays which are assumed to wrap a
-Seqex.
-
-Nested expressions (e.g., a tree structure) may be expressed with `se/subex`.
-
-### Old API (too confusing and cryptic)
-
-To choose between multiple seqexes, use the c1, c? etc functions:
-
-* (c1 & seqexes): matches any one of the given seqexes.
-* (c? & seqexes): matches zero or any one of the given seqexes.
-* (c+ & seqexes): matches one or more of the given seqexes in any order.
-* (c\* & seqexes): matches zero or more of the given seqexes in any order.
-* (cx x & seqexes): matches any of the seqexes exactly x times.
-* (cr [n m] & seqexes): matches any of the seqexes between n and m times.
-
-To order multiple seqexes sequentially, use the s1, s?, etc functions.
-
-* (s1 & seqexes): matches all seqexes in order.
-* (s? & seqexes): matches none or all seqexes in order.
-* (s+ & seqexes): matches all seqexes in order one or more times.
-* (s\* & seqexes): matches all seqexes in order zero or more times.
-* (sx x & seqexes): matches all seqexes in order repeated x times.
-* (sr [n m] & seqexes): matches all seqexes in order between n and m times.
-
-delays are considered sequence expressions but are not dereferenced until
-matched against the input sequence.
-
-## Usage
-
-These functions are available to work with Seqexes by applying them to a
-sequence of tokens.
-
-`se/exec` : returns both the end models and a final verdict of Matching or
-Invalid.
-`se/valid?`: returns true if the input stream matched the seqex constraints.
-`se/model`: returns just the end models.
-`se/matches`: an attempt to mimic Clojure's matches for regular expressions.
-Don't use...
-
-### Examples
-
-This is a more involved example showing how it is possible to match simple match
-expressions. Notice how easy it is to define define new Seqex functions. also
-notice the use of declare and delay to allow for a recursive definition.
+This is a more involved example showing how it is possible to define math
+expressions. Notice how Seqexes are just functions. also notice the use of
+`declare` and `delay` to allow for the recursive definition.
 
 ```clojure
 ;; math expressions demo
