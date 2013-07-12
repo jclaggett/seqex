@@ -62,9 +62,8 @@ such that they match exactly one occurance of themselves. Examples:
 (se/valid? {:a 1} [{:a 1}]) ;=> true
 ```
 
-Functions are assumed to be predicates that must be true for all elements in a
-sequence. Functions require a non-empty sequence (But I could be convinced that
-functions always match an empty sequence too... opinions?)
+Functions are treated as predicates that must be true for exactly one token in a
+sequence.
 
 Recursive expressions are defined by using delays which are assumed to wrap a
 Seqex.
