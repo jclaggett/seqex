@@ -147,18 +147,17 @@ The model(s) are finalized and returned when `se/-end` is called and the
 model(s) can be initialized and updated up when `se/-begin` and `se/-continue`
 are called. Most standard Seqexes do not build any model at all and ususally
 return an empty sequence of models. The exceptions to this are the standard
-capturing seqexes: `se/cap`, `se/cap-tokens` and `se/recap`.
+capturing seqexes: `se/cap` and `se/recap`.
 
-`se/cap` provides hooks to initialize, build, and finalize a model based on the
-tokens examined. It also takes a Seqex as an argument and returns any models
-that it creates.
+`se/cap` requires a Seqex and may have an optional finalize function. It
+captures all tokens examined by seqex that were not judged with an Invalid
+verdict. Those tokens are either then immediately returned or are passed to
+finalize and its return value is used in their place. Any sub-models created by
+the Seqex under `se/cap` are then appended after the captured tokens.
 
-`se/cap-tokens` wraps a Seqex (like `se/cap`) and simply captures all examined
-tokens as its model. It also returns models from the wrapped Seqex.
-
-`se/recap` takes a finalizing function and a Seqex to be wrapped. All models
-returned bythe Seqex are passed to the finalizing function and the return value
-of the finalizing function treated as a single model to be returned.
+`se/recap` wraps a Seqex (like `se/cap`) but requires a finalize function.
+This time the finalize function is given all models created by Seqex and its
+return value is treated as a sequence of one or more models.
 
 Most of the standard Seqexes (e.g., `se/ord`, `se/qty+`) will return a list of
 models from seqexes below them. Also, `subex` will return any model built
