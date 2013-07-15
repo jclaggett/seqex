@@ -55,7 +55,7 @@
          ! "abcde"))
 
 (deftest fns
-  (check (fn vowel? [c] ((set "aeiou") c))
+  (check (se/qty+ (fn vowel? [c] ((set "aeiou") c)))
          ! ""
          = "o"
          = "aa"
@@ -63,7 +63,7 @@
          = "uoiea"
          ! "z"
          ! "abe")
-  (check odd?
+  (check (se/qty+ odd?)
          ! []
          = [1 3 5]
          ! [1 3 4]
@@ -93,7 +93,7 @@
          ! [0 1 1 0 2 3]))
 
 (deftest logic
-  (check (se/not (se/qty* odd?))
+  (check (se/not (se/qty+ odd?))
          = [2 4 6]
          ! [1]
          ! [])
@@ -144,16 +144,16 @@
 
 (def number
   "real number. (captured)"
-  (se/recap #(Double/parseDouble (apply str %))
-            (se/cap-tokens
-              (se/ord (se/opt \+ \-)
-                      (se/alt digits
-                              (se/ord \. digits)
-                              (se/ord digits \.)
-                              (se/ord digits \. digits))
-                      (se/opt (se/ord (se/alt \e \E)
-                                      (se/opt \+ \-)
-                                      digits))))))
+  (se/cap
+    (se/ord (se/opt \+ \-)
+            (se/alt digits
+                    (se/ord \. digits)
+                    (se/ord digits \.)
+                    (se/ord digits \. digits))
+            (se/opt (se/ord (se/alt \e \E)
+                            (se/opt \+ \-)
+                            digits)))
+    #(Double/parseDouble (apply str %))))
 
 (declare add-expr)
 (def atom-expr (se/alt number (ord-ws \( (delay add-expr) \) )))
@@ -199,10 +199,8 @@
          = big-example))
 
 (deftest capturing
-  (is (= (se/matches \1 "1") "1"))
-  (is (= (se/matches \1 "2") nil))
-  (is (= (se/matches (se/cap-tokens \1) "1") ["1" "1"]))
-  (is (= (se/matches (se/cap-tokens \1) "2") nil))
+  (is (= (se/model (se/cap \1 first) "1") [\1]))
+  (is (= (se/model (se/cap \1) "2") nil))
   (is (= (se/model math-expr big-example)
          [2.0 2.0 2.0 -1.0 0.0 -1.0 12.3])))
 

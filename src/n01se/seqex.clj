@@ -196,28 +196,28 @@
 
 (defn- parallel
   "Sequences constrained by multiple expressions combined with bit-op."
-  [bit-op & ses]
+  [bit-op & seqexes]
   (reify SeqEx
     (-begin [_]
-      (combine-results bit-op (map #(-begin %1) ses)))
-    (-continue [_ s t]
-      (combine-results bit-op (map #(-continue %1 %2 %3) ses s (repeat t))))
-    (-end [_ s] nil)))
+      (combine-results bit-op (map #(-begin %1) seqexes)))
+    (-continue [_ states token]
+      (combine-results bit-op (map #(-continue %1 %2 token) seqexes states)))
+    (-end [_ states] (mapcat #(-end %1 %2) seqexes states))))
 
 (defn- se-and "Sequences in which all expressions are true."
-  [& ses]
-  (apply parallel bit-and ses))
+  [& seqexes]
+  (apply parallel bit-and seqexes))
 
 (defn- se-or "Sequences in which any expressions is true."
-  [& ses]
-  (apply parallel bit-or ses))
+  [& seqexes]
+  (apply parallel bit-or seqexes))
 
 (defn apply-fn "Sequences where expression is applied to (f value)."
-  [f se]
+  [f seqex]
   (reify SeqEx
-    (-begin [_] (-begin se))
-    (-continue [_ s t] (-continue se s (f t)))
-    (-end [_ s] (-end se s))))
+    (-begin [_] (-begin seqex))
+    (-continue [_ s t] (-continue seqex s (f t)))
+    (-end [_ s] (-end seqex s))))
 
 ; Serial expression: compose muliple seqexes such that they are applied to the
 ; sequence one at a time and limited by a higher order seqex on the indicies of
@@ -358,32 +358,33 @@
 
 ;; Capturing seqexes
 (defn cap
-  "Initialize, capture, and finalize a model. The final model is added to the
-  front of any sub-models returned by seqex."
-  [m-begin m-continue m-end seqex]
-  (reify SeqEx
-    (-begin [_]
-      (let [[state verdict] (-begin seqex)]
-        [[state (m-begin)] verdict]))
-    (-continue [_ [state m] token]
-      (let [[state verdict] (-continue seqex state token)]
-        [[state (m-continue m token)] verdict]))
-    (-end [_ [state m]]
-      (cons (m-end m) (-end seqex state)))))
-
-(defn cap-tokens
-  "Capture all examined tokens and return as the model."
-  [seqex]
-  (cap vector conj identity seqex))
+  "Capture all non-invalid tokens examined by seqex. Return a vector of tokens
+  unless finalize is specified and instead pass the token vector to finalize and
+  use its return value instead. The resulting 'model' is prepended to any
+  sub-models returned by seqex."
+  [seqex & [finalize]]
+  (let [finalize (clj/or finalize identity)]
+    (reify SeqEx
+      (-begin [_]
+        (let [[state verdict] (-begin seqex)]
+          [[state []] verdict]))
+      (-continue [_ [state tokens] token]
+        (let [[state verdict] (-continue seqex state token)]
+          [[state (if (invalid? verdict)
+                    tokens
+                    (conj tokens token))]
+           verdict]))
+      (-end [_ [state tokens]]
+        (cons (finalize tokens) (-end seqex state))))))
 
 (defn recap
-  "Apply f to the returned models by seqex and return result as a single new
-  model."
-  [f seqex]
+  "Apply finalize to all returned models by seqex and treat its result as a
+  sequence of new models."
+  [seqex finalize]
   (reify SeqEx
     (-begin [_] (-begin seqex))
     (-continue [_ state token] (-continue seqex state token))
-    (-end [_ state] [(apply f (-end seqex state))])))
+    (-end [_ state] (finalize (-end seqex state)))))
 
 ;; API for using seqexes
 (defn exec
@@ -422,21 +423,8 @@
         (exec seqex (clj/seq token))
         [nil Invalid]))
     (-end [_ result]
-      result)))
-
-(defn matches
-  "Returns tokens if tokens match seqex or nil otherwise. If
-  additional capturing occurs, returns sequence of matches with
-  behavior similar to re-groups."
-  [seqex tokens]
-  (let [[results] (exec (cap-tokens seqex) tokens)
-        results (if (clj/and (clj/not (nil? results)) (string? tokens))
-                  (map (partial apply str) results)
-                  results)
-        results (if (= 1 (count results))
-                  (first results)
-                  results)]
-    results))
+      (when-not (nil? result)
+        (list result)))))
 
 (defn se-find
  "Find and return first occurance of seqex in tokens."
@@ -454,4 +442,3 @@
 (def not se-not)
 (def or se-or)
 (def range se-range)
-
