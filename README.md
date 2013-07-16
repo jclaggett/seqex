@@ -7,9 +7,9 @@ arbitrary sequences of values (not just characters).
 
 The core expression engine works and can be used to describe very complex
 patterns. It is not quick compared to regexes but I've used it to parse hundreds
-of files in a few seconds. The big item missing at this point is an analyzer
-for optimizing a sequence expression tree. I would not consider the API solid just yet
-but that will improve through use.
+of files in a few seconds. The big item missing at this point is an analyzer for
+optimizing a sequence expression tree. I would not consider the API solid just
+yet but that will improve through use.
 
 ## Quick Start
 
@@ -35,7 +35,6 @@ sequence of tokens.
 * `se/exec`: returns both the end models and a final verdict of Matching or Invalid.
 * `se/valid?`: returns true if the input stream matched the seqex constraints.
 * `se/model`: returns just the end models.
-* `se/matches`: was an attempt to mimic Clojure's matches for regular expressions. Don't use...
 
 ## Composing Seqexes
 
@@ -147,25 +146,29 @@ The model(s) are finalized and returned when `se/-end` is called and the
 model(s) can be initialized and updated up when `se/-begin` and `se/-continue`
 are called. Most standard Seqexes do not build any model at all and ususally
 return an empty sequence of models. The exceptions to this are the standard
-capturing seqexes: `se/cap` and `se/recap`.
+capturing seqexes: `se/cap`, `se/cap-one` and `se/recap`.
 
-`se/cap` requires a Seqex and may have an optional finalize function. It
-captures all tokens examined by seqex that were not judged with an Invalid
-verdict. Those tokens are either then immediately returned or are passed to
+`se/cap` and `se/cap-one` require a Seqex and both may have an optional finalize
+function. `se/cap` captures all tokens examined by Seqex that were not judged
+with an Invalid verdict. `se/cap-one` captures only the last non-Invalid token.
+The captured token(s) are either then immediately returned or are passed to
 finalize and its return value is used in their place. Any sub-models created by
-the Seqex under `se/cap` are then appended after the captured tokens.
+the Seqex under `se/cap` or `se/cap-one` are then appended after the captured
+tokens.
 
-`se/recap` wraps a Seqex (like `se/cap`) but requires a finalize function.
-This time the finalize function is given all models created by Seqex and its
-return value is treated as a sequence of one or more models.
+In constrast, `se/recap` does not capture tokens at all. Instead it wraps a
+Seqex (like `se/cap`) and requires a finalize function which takes all models
+captured by the wrapped Seqex. The return value of finalize must be a sequence
+of zero or more models.
 
 Most of the standard Seqexes (e.g., `se/ord`, `se/qty+`) will return a list of
-models from seqexes below them. Also, `subex` will return any model built
-from the Seqex it wraps.
+models from seqexes below them. Also, `subex` will return a sequence of models
+built from the Seqex it wraps.
 
 There are a lot of interesting possiblities with model building but I need to
 experiment with this before saying much more about it. I will say that combining
-constraints with arbitrary model building is quite powerful. You've been warned.
+constraints with arbitrary model building is quite powerful. You have been
+warned.
 
 ### Example
 

@@ -24,7 +24,7 @@
   "Sequence expression protocol. Used by types that implement seqexes."
   (-begin [_] ; return [state verdict]
     "Initial function that returns the beginning state and verdict.")
-  (-continue [_ state token] ; return [state verdict matches]
+  (-continue [_ state token] ; return [state verdict]
     "Continue sequence by examining the current token using current state.
     Returns new state and verdict.")
   (-end [_ state] ; return models
@@ -357,25 +357,40 @@
 (defn sx [x & seqexes] (cx x (apply s1 seqexes)))
 
 ;; Capturing seqexes
+(defn cap-model
+  "Capture a model based on non-invalid tokens examined by seqex."
+  [seqex & {:keys [begin continue end]
+            :or   {begin vector continue conj end identity}}]
+  (reify SeqEx
+    (-begin [_]
+      (let [[state verdict] (-begin seqex)]
+        [[state (begin)] verdict]))
+    (-continue [_ [state model] token]
+      (let [[state verdict] (-continue seqex state token)]
+        [[state (if (invalid? verdict)
+                  model
+                  (continue model token))]
+         verdict]))
+    (-end [_ [state model]]
+      (cons (end model) (-end seqex state)))))
+
 (defn cap
   "Capture all non-invalid tokens examined by seqex. Return a vector of tokens
   unless finalize is specified and instead pass the token vector to finalize and
   use its return value instead. The resulting 'model' is prepended to any
   sub-models returned by seqex."
   [seqex & [finalize]]
-  (let [finalize (clj/or finalize identity)]
-    (reify SeqEx
-      (-begin [_]
-        (let [[state verdict] (-begin seqex)]
-          [[state []] verdict]))
-      (-continue [_ [state tokens] token]
-        (let [[state verdict] (-continue seqex state token)]
-          [[state (if (invalid? verdict)
-                    tokens
-                    (conj tokens token))]
-           verdict]))
-      (-end [_ [state tokens]]
-        (cons (finalize tokens) (-end seqex state))))))
+  (cap-model seqex :end (clj/or finalize identity)))
+
+(defn cap-one
+  "Capture a single non-invalid token examined by seqex. Return just that token
+  or, if specified, pass it to finalize and use its return value instead. If
+  multiple tokens are matched by seqex, the last one is used."
+  [seqex & [finalize]]
+  (cap-model seqex
+             :begin (constantly nil)
+             :continue #(do %2)
+             :end (clj/or finalize identity)))
 
 (defn recap
   "Apply finalize to all returned models by seqex and treat its result as a

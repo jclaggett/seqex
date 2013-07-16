@@ -1,4 +1,5 @@
-(require '[n01se.seqex :as se])
+(ns n01se.seqex.examples.math
+  (:require [n01se.seqex :as se]))
 
 ;; math expressions demo
 (def ws
