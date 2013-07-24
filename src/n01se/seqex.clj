@@ -8,27 +8,22 @@
 (alias 'clj 'clojure.core)
 
 ;; Verdicts
-(def Invalid   2r00) ;; Not matching and don't continue.      :-(  ;; Damned-Lost-Sad
-(def Continue  2r01) ;; Not matching but continue. ;; Pending ;-(  ;; Seeking-Hopeful
-(def Matching  2r10) ;; Matching but don't continue. ;; Valid :-)  ;; Glorified-Won-Happy
-(def Satisfied 2r11) ;; Matching and continue.                ;-)  ;; Walking-Nervous
+(def ^:const Failed  2r00) ;; Not matching and don't continue.
+(def ^:const Failing 2r01) ;; Not matching but continue.
+(def ^:const Passed  2r10) ;; Matching but don't continue.
+(def ^:const Passing 2r11) ;; Matching and continue.
 
-(def Failed  Invalid)
-(def Failing Continue)
-(def Passed  Matching)
-(def Passing Satisfied)
+(def ^:const Continue Failing)
+(def ^:const Matching Passed)
 
 (defn failed?  [v] (= v Failed))
 (defn failing? [v] (= v Failing))
 (defn passed?  [v] (= v Passed))
 (defn passing? [v] (= v Passing))
-
-(defn vbool [v] (if v Satisfied Invalid))
-
-(defn invalid?   [v] (= v Invalid))
 (defn continue?  [v] (= (bit-and v Continue) Continue))
 (defn matching?  [v] (= (bit-and v Matching) Matching))
-(defn satisfied? [v] (= v Satisfied))
+
+(defn vbool [v] (if v Passing Failed))
 
 (defprotocol SeqEx
   "Sequence expression protocol. Used by types that implement seqexes."
@@ -47,32 +42,32 @@
 ; Simple cardnality expressions
 (def n0
   (reify SeqEx
-    (-begin [_] [Invalid Matching])
+    (-begin [_] [Failed Passed])
     (-continue [_ s t] [s s])
     (-end [_ s] nil)))
 
 (def n1
   (reify SeqEx
-    (-begin [_] [Matching Continue])
-    (-continue [_ s t] [Invalid s])
+    (-begin [_] [Passed Failing])
+    (-continue [_ s t] [Failed s])
     (-end [_ s] nil)))
 
 (def n?
   (reify SeqEx
-    (-begin [_] [Matching Satisfied])
-    (-continue [_ s t] [Invalid s])
+    (-begin [_] [Passed Passing])
+    (-continue [_ s t] [Failed s])
     (-end [_ s] nil)))
 
 (def n*
   (reify SeqEx
-    (-begin [_] [Satisfied Satisfied])
-    (-continue [_ s t] [Satisfied s])
+    (-begin [_] [Passing Passing])
+    (-continue [_ s t] [Passing s])
     (-end [_ s] nil)))
 
 (def n+
   (reify SeqEx
-    (-begin [_] [Satisfied Continue])
-    (-continue [_ s t] [Satisfied s])
+    (-begin [_] [Passing Failing])
+    (-continue [_ s t] [Passing s])
     (-end [_ s] nil)))
 
 (defrecord Cardnality [low high]
@@ -81,11 +76,11 @@
   (-continue [_ s t]
     [(inc s)
      (cond
-       (< s  low)  Continue
-       (nil? high) Satisfied
-       (< s  high) Satisfied
-       (= s  high) Matching
-       (> s  high) Invalid)])
+       (< s  low)  Failing
+       (nil? high) Passing
+       (< s  high) Passing
+       (= s  high) Passed
+       (> s  high) Failed)])
   (-end [_ s] nil))
 
 (defn nx [x] (if (sequential? x)
@@ -102,22 +97,22 @@
            java.lang.Character java.lang.Double java.lang.Long
            java.lang.String]]
   (extend T SeqEx
-          {:-begin (constantly [true Continue])
+          {:-begin (constantly [true Failing])
            :-continue (fn [literal first-time? token]
                         [false (if (clj/and first-time? (= literal token))
-                                 Matching
-                                 Invalid)])
+                                 Passed
+                                 Failed)])
            :-end (constantly nil)}))
 
 ; functions and delay refs
 (extend-protocol SeqEx
   ;; Functions are treated as predicates on a single token.
   clojure.lang.Fn
-  (-begin [_] [true Continue])
+  (-begin [_] [true Failing])
   (-continue [pred first-time? token]
     [false (if (clj/and first-time? (pred token))
-             Matching
-             Invalid)])
+             Passed
+             Failed)])
   (-end [_ _] nil)
 
   ;; Delays are assumed to hold a seqex to be used.
@@ -156,21 +151,21 @@
   [n]
   (let [n-1 (dec n)]
     (reify SeqEx
-      (-begin [_] [0 Continue])
+      (-begin [_] [0 Failing])
       (-continue [_ s t]
         [(inc s)
          (if (= s t)
            (if (< s n-1)
-             Continue
+             Failing
              (if (= s n-1)
-               Matching
-               Invalid))
-           Invalid)])
+               Passed
+               Failed))
+           Failed)])
       (-end [_ s] nil))))
 
 (def unique "Sequences with no repeating values."
   (reify SeqEx
-    (-begin [_] [#{} Satisfied])
+    (-begin [_] [#{} Passing])
     (-continue [_ s t] [(conj s t) (vbool (clj/not (contains? s t)))])
     (-end [_ s] nil)))
 
@@ -179,23 +174,23 @@
   [elems]
   (let [s (set elems)]
     (reify SeqEx
-      (-begin [_] [s (if (empty? s) Matching Continue)])
+      (-begin [_] [s (if (empty? s) Passed Failing)])
       (-continue [_ s t] (if (contains? s t)
                            (let [s (disj s t)]
-                             [s (if (empty? s) Matching Continue)])
-                           [s Invalid]))
+                             [s (if (empty? s) Passed Failing)])
+                           [s Failed]))
       (-end [_ s] nil))))
 
 ; Higher order expressions (these take expressions as arguments).
 ; Arguably, these are the only expressions that need to be macros.
 
-(defn- se-not "Sequences where expression is always Invalid."
+(defn- se-not "Sequences where expression is always Failed."
   [se]
   (reify SeqEx
     (-begin [_] (-begin se))
     (-continue [_ s t]
       (let [[s v] (-continue se s t)]
-        [s (vbool (= v Invalid))]))
+        [s (vbool (= v Failed))]))
     (-end [_ s] nil)))
 
 (defn- combine-results [seqexes bit-op seqex-fn & [svs token]]
@@ -303,7 +298,7 @@
     ;; apply token to each continuing path
     (map (fn [[ssv ise [is iv] models]] [ssv ise (-continue ise is token) models]))
     ;; remove any now invalid paths
-    (remove (fn [[ssv ise [is iv]]] (invalid? iv)))))
+    (remove (fn [[ssv ise [is iv]]] (failed? iv)))))
 
 ;; TODO I could use an ordered set data structure in branch-paths.
 (defn- branch-paths
@@ -314,8 +309,8 @@
               ;; define first (superior) half of path
               (map-indexed (fn [idx ise] [(-continue superior-se old-ss idx)
                                           ise]))
-              ;; filter Invalid paths (= sv Invalid)
-              (remove (fn [[[ss sv] ise]] (invalid? sv)))
+              ;; filter Failed paths (= sv Failed)
+              (remove (fn [[[ss sv] ise]] (failed? sv)))
               ;; define second (inferior) half of path
               (map (fn [[ssv ise :as path]]
                      (-> path
@@ -336,15 +331,15 @@
   paths plus final verdict."
   [paths]
   [paths
-   (apply bit-or Invalid Invalid
+   (apply bit-or Failed Failed
           (for [[[ss sv] ise [is iv]] paths]
             (if (clj/or (continue? sv) (continue? iv))
               (if (clj/and (matching? sv) (matching? iv))
-                Satisfied
-                Continue)
+                Passing
+                Failing)
               (if (clj/and (matching? sv) (matching? iv))
-                Matching
-                Invalid))))])
+                Passed
+                Failed))))])
 
 (defrecord Serial [superior-se inferior-ses]
   SeqEx
@@ -413,7 +408,7 @@
         [[state (begin)] verdict]))
     (-continue [_ [state model] token]
       (let [[state verdict] (-continue seqex state token)]
-        [[state (if (invalid? verdict)
+        [[state (if (failed? verdict)
                   model
                   (continue model token))]
          verdict]))
@@ -450,18 +445,18 @@
 ;; API for using seqexes
 (defn exec
   "Apply a seqex to a series of tokens. Returns results of (-end seqex) and a
-  verdict of Matching or Invalid."
+  verdict of Passed or Failed."
   [seqex tokens]
   (loop [[state verdict] (-begin seqex)
          [token & more :as ts] tokens]
     (if (empty? ts)
       (if (matching? verdict)
-        [(-end seqex state) Matching]
-        [nil Invalid])
+        [(-end seqex state) Passed]
+        [nil Failed])
 
       (if (continue? verdict)
         (recur (-continue seqex state token) more)
-        [nil Invalid]))))
+        [nil Failed]))))
 
 (defn valid?
   "Returns true when tokens are a valid input for seqex."
@@ -478,11 +473,11 @@
   This is a sort of 'descend' operation for matching nested data."
   [seqex]
   (reify SeqEx
-    (-begin [_] [nil Continue])
+    (-begin [_] [nil Failing])
     (-continue [_ _ token]
       (if (coll? token)
         (exec seqex (clj/seq token))
-        [nil Invalid]))
+        [nil Failed]))
     (-end [_ result]
       (when-not (nil? result)
         (list result)))))
