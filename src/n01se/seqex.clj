@@ -265,7 +265,7 @@
 
 ; Serial expression: compose muliple seqexes such that they are applied to the
 ; sequence one at a time and limited by a higher order seqex on the indicies of
-; those seqexes. Pretty much the ultimate power in the universe :-).
+; those seqexes. Pretty much the ultimate power in the universe (:-).
 
 ; Example expression:
 ;   (serial unique vowels numbers symbols)
@@ -356,9 +356,11 @@
     (-> (age-paths paths token)
       (branch-paths superior-se inferior-ses)
       judge-paths))
-  (-end [_ [[ssv ise [is iv] models :as path] :as paths]]
-    (when-not (empty? paths)
-      (concat models (-end ise is)))))
+  (-end [_ paths]
+    (some (fn [[[ss sv] ise [is iv] models :as path]]
+            (when (clj/and (matching? sv) (matching? iv))
+                (concat models (-end ise is))))
+          paths)))
 
 ;; New API
 
