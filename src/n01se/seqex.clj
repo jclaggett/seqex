@@ -8,10 +8,20 @@
 (alias 'clj 'clojure.core)
 
 ;; Verdicts
-(def Invalid   2r00) ;; Not matching and don't continue.
-(def Continue  2r01) ;; Not matching but continue.
-(def Matching  2r10) ;; Matching but don't continue.
-(def Satisfied 2r11) ;; Matching and continue.
+(def Invalid   2r00) ;; Not matching and don't continue.      :-(  ;; Damned-Lost-Sad
+(def Continue  2r01) ;; Not matching but continue. ;; Pending ;-(  ;; Seeking-Hopeful
+(def Matching  2r10) ;; Matching but don't continue. ;; Valid :-)  ;; Glorified-Won-Happy
+(def Satisfied 2r11) ;; Matching and continue.                ;-)  ;; Walking-Nervous
+
+(def Failed  Invalid)
+(def Failing Continue)
+(def Passed  Matching)
+(def Passing Satisfied)
+
+(defn failed?  [v] (= v Failed))
+(defn failing? [v] (= v Failing))
+(defn passed?  [v] (= v Passed))
+(defn passing? [v] (= v Passing))
 
 (defn vbool [v] (if v Satisfied Invalid))
 
@@ -188,29 +198,63 @@
         [s (vbool (= v Invalid))]))
     (-end [_ s] nil)))
 
-(defn- combine-results
-  "Combine state and verdicts using the given bit operation."
-  [bit-op results]
-  (let [[states verdicts] (transpose results)]
-    [states (apply bit-op verdicts)]))
+(defn- combine-results [seqexes bit-op seqex-fn & [svs token]]
+  (let [short-verdict (bit-op Passed Failed)
+        default-verdict (bit-xor short-verdict Passed)
+        svs (clj/or svs (repeat (count seqexes)
+                                [nil (bit-or default-verdict Continue)]))]
+    (loop [[seqex & more-seqexes :as seqexes] seqexes,
+           [[state last-verdict :as last-sv] & more-svs] svs,
+           final-state [],
+           final-verdict default-verdict]
+      (if (empty? seqexes)
+        [final-state final-verdict]
+        (let [[sub-state sub-verdict :as sub-sv] (if (= default-verdict last-verdict)
+                                                   last-sv
+                                                   (seqex-fn seqex state token))]
+          (if (= short-verdict sub-verdict)
+            [(conj (vec (repeat (count final-state)
+                                [nil Failed]))
+                   sub-sv) sub-verdict] ;; Short Circuit
+            (recur more-seqexes more-svs
+                   (conj final-state sub-sv)
+                   ;; final verdict = logical <op> of matching bits
+                   ;;               + logical or of continue bits.
+                   (bit-or (bit-op (bit-and Matching final-verdict)
+                                   (bit-and Matching sub-verdict))
+                           (bit-and Continue final-verdict)
+                           (bit-and Continue sub-verdict)))))))))
 
-(defn- parallel
-  "Sequences constrained by multiple expressions combined with bit-op."
-  [bit-op & seqexes]
+(defn- logic-combine
+  "Sequences in which all seqexes are logically related. Short
+  circuits if possible. Calls end-fn with a list of last state and
+  verdict pairs for each seqex."
+  [seqexes bit-op end-fn]
   (reify SeqEx
     (-begin [_]
-      (combine-results bit-op (map #(-begin %1) seqexes)))
-    (-continue [_ states token]
-      (combine-results bit-op (map #(-continue %1 %2 token) seqexes states)))
-    (-end [_ states] (mapcat #(-end %1 %2) seqexes states))))
+      (combine-results seqexes bit-op (fn [seqex _ _] (-begin seqex))))
+    (-continue [_ svs token]
+      (combine-results seqexes bit-op -continue svs token))
+    (-end [_ svs]
+      (end-fn svs))))
 
 (defn- se-and "Sequences in which all expressions are true."
   [& seqexes]
-  (apply parallel bit-and seqexes))
+  (logic-combine seqexes
+                 bit-and
+                 #(if (some failing? (map second %))
+                    nil ;; Failed... No models for you
+                    (mapcat -end seqexes (map first %)))))
 
-(defn- se-or "Sequences in which any expressions is true."
+(defn- se-or "Sequences in which any expression is true."
   [& seqexes]
-  (apply parallel bit-or seqexes))
+  (logic-combine seqexes
+                 bit-or
+                 #(first
+                   (some (fn [[seqex [state verdict]]]
+                           (when (matching? verdict)
+                             [(-end seqex state)]))
+                         (map list seqexes %)))))
 
 (defn apply-fn "Sequences where expression is applied to (f value)."
   [f seqex]
