@@ -34,7 +34,9 @@
     "Continue sequence by examining the current token using current state.
     Returns new state and verdict.")
   (-end [_ state] ; return models
-    "Finish by calculating zero or more models from state."))
+    "Finish by calculating zero or more models from state.")
+  (-error [_ state] ; return error string
+    "Return a description of why the seqex failed given state."))
 
 (set! *warn-on-reflection* true)
 
