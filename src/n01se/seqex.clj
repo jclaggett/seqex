@@ -4,7 +4,7 @@
   (:use [n01se.seqex.util :only [transpose ->when ->when-not]]
         [clojure.pprint :only [pprint]]
         [clojure.string :as str :only []])
-  (:refer-clojure :exclude [and not or range]))
+  (:refer-clojure :exclude [and not or range defmacro]))
 
 (alias 'clj 'clojure.core)
 
@@ -517,6 +517,18 @@
 (defn se-seq [seqex tokens]
   "Find and return a sequence of all non-overlapping occurances of seqex.")
 
+;; define our own defmacro but do it near the bottom for obvious reasons.
+(clj/defmacro defmacro
+  "Return a named macro defined by a seqex that is applied to the macro's
+  arguments."
+  [name seqex]
+  `(clj/defmacro ~name [& tokens#]
+     (let [[forms# verdict#] (exec ~seqex tokens#)]
+       (if (matching? verdict#)
+         (if (= 1 (count forms#))
+           (first forms#)
+           `(do ~@forms#))))
+     `(do ~@(model ~seqex tokens#))))
 
 ;; Rename all the se-* expressions that overwrite built in names. Do this near
 ;; the bottom of the file so as to reduce the chance of accidentally using
