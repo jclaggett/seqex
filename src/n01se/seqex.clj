@@ -316,7 +316,7 @@
     ;; keep only continuing paths
     (filter (fn [[ssv ise [is iv]]] (continue? iv)))
     ;; apply token to each continuing path
-    (map (fn [[ssv ise [is iv] models]] [ssv ise (-continue ise is token) models]))
+    (map (fn [[ssv ise [is iv] parent]] [ssv ise (-continue ise is token) parent]))
     ;; remove any now invalid paths
     (remove (fn [[ssv ise [is iv]]] (failed? iv)))))
 
@@ -324,7 +324,7 @@
 (defn- branch-paths
   "Check if each path has child paths and create those paths as needed."
   [old-paths superior-se inferior-ses]
-  (letfn [(branch [new-paths [[old-ss old-sv] old-ise [old-is old-iv] models]]
+  (letfn [(branch [new-paths [[old-ss old-sv] old-ise [old-is old-iv] :as parent-path]]
             (->> inferior-ses
               ;; define first (superior) half of path
               (map-indexed (fn [idx ise] [(-continue superior-se old-ss idx)
@@ -335,7 +335,7 @@
               (map (fn [[ssv ise :as path]]
                      (-> path
                          (conj (-begin ise))
-                         (conj (concat models (-end old-ise old-is))))))
+                         (conj parent-path))))
               (reduce inspect new-paths)))
 
           (inspect [new-paths [[ss sv] ise [is iv] :as path]]
@@ -372,9 +372,13 @@
       (branch-paths superior-se inferior-ses)
       judge-paths))
   (-end [_ paths]
-    (some (fn [[[ss sv] ise [is iv] models :as path]]
+    (some (fn [[[ss sv] ise [is iv] :as path]]
             (when (clj/and (matching? sv) (matching? iv))
-                (concat models (-end ise is))))
+              (loop [[_ ise [is iv] parent] path, models ()]
+                (let [models (concat (-end ise is) models)]
+                  (if (nil? parent)
+                    models
+                    (recur parent models))))))
           paths))
   Object
   (toString [_] (apply pr-str name inferior-ses)))
@@ -469,19 +473,16 @@
 
 ;; API for using seqexes
 (defn exec
-  "Apply a seqex to a series of tokens. Returns results of (-end seqex) and a
-  verdict of Passed or Failed."
+  "Apply a seqex to a series of tokens. Returns the state plus verdict."
   [seqex tokens]
-  (loop [[state verdict] (-begin seqex)
+  (loop [[state verdict :as pair] (-begin seqex)
          [token & more :as ts] tokens]
     (if (empty? ts)
-      (if (matching? verdict)
-        [(-end seqex state) Passed]
-        [nil Failed])
-
+      pair
       (if (continue? verdict)
         (recur (-continue seqex state token) more)
-        [nil Failed]))))
+        ;; Indicate failure since there were unconsumed tokens.
+        [state Failed]))))
 
 (defn valid?
   "Returns true when tokens are a valid input for seqex."
@@ -491,7 +492,9 @@
 (defn model
   "Executes seqex against tokens returning any captured model."
   [seqex tokens]
-  (first (exec seqex tokens)))
+  (let [[state verdict] (exec seqex tokens)]
+    (when (matching? verdict)
+      (-end seqex state))))
 
 (defn subex
   "Matches a single sequential token, matching seqex on its contents.
@@ -507,7 +510,7 @@
         [nil Failed]))
     (-end [_ result]
       (when-not (nil? result)
-        (list result)))
+        (list (-end seqex result))))
     Object
     (toString [_] (pr-str 'subex seqex))))
 
