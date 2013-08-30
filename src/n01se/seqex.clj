@@ -17,12 +17,12 @@
 (def ^:const Continue Failing)
 (def ^:const Matching Passed)
 
-(defn failed?  [v] (= v Failed))
-(defn failing? [v] (= v Failing))
-(defn passed?  [v] (= v Passed))
-(defn passing? [v] (= v Passing))
-(defn continue?  [v] (= (bit-and v Continue) Continue))
-(defn matching?  [v] (= (bit-and v Matching) Matching))
+(defn failed?   [v] (= v Failed))
+(defn failing?  [v] (= v Failing))
+(defn passed?   [v] (= v Passed))
+(defn passing?  [v] (= v Passing))
+(defn continue? [v] (= (bit-and v Continue) Continue))
+(defn matching? [v] (= (bit-and v Matching) Matching))
 
 (defn vbool [v] (if v Passing Failed))
 
