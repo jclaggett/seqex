@@ -199,9 +199,9 @@
          = big-example))
 
 (deftest capturing
-  (is (= (se/model (se/cap \1 first) "1") [\1]))
-  (is (= (se/model (se/cap \1) "2") nil))
-  (is (= (se/model math-expr big-example)
+  (is (= (se/models (se/cap \1 first) "1") [\1]))
+  (is (= (se/models (se/cap \1) "2") nil))
+  (is (= (se/models math-expr big-example)
          [2.0 2.0 2.0 -1.0 0.0 -1.0 12.3])))
 
 (deftest ^:perf perf-math

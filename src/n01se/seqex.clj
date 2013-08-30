@@ -489,7 +489,7 @@
   [seqex tokens]
   (matching? (second (exec seqex tokens))))
 
-(defn model
+(defn models
   "Executes seqex against tokens returning any captured model."
   [seqex tokens]
   (let [[state verdict] (exec seqex tokens)]
@@ -533,7 +533,7 @@
          (if (= 1 (count forms#))
            (first forms#)
            `(do ~@forms#))))
-     `(do ~@(model ~seqex tokens#))))
+     `(do ~@(models ~seqex tokens#))))
 
 ;; Rename all the se-* expressions that overwrite built in names. Do this near
 ;; the bottom of the file so as to reduce the chance of accidentally using
