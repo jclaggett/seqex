@@ -427,8 +427,8 @@
 (defn sx [x & seqexes] (cx x (apply s1 seqexes)))
 
 ;; Capturing seqexes
-(defn cap-model
-  "Capture a model based on non-invalid tokens examined by seqex."
+(defn cap-tokens
+  "Capture tokens based on non-invalid tokens examined by seqex."
   [seqex & {:keys [begin continue end]
             :or   {begin vector continue conj end identity}}]
   (reify SeqEx
@@ -450,14 +450,14 @@
   use its return value instead. The resulting 'model' is prepended to any
   sub-models returned by seqex."
   [seqex & [finalize]]
-  (cap-model seqex :end (clj/or finalize identity)))
+  (cap-tokens seqex :end (clj/or finalize identity)))
 
 (defn cap-one
   "Capture a single non-invalid token examined by seqex. Return just that token
   or, if specified, pass it to finalize and use its return value instead. If
   multiple tokens are matched by seqex, the last one is used."
   [seqex & [finalize]]
-  (cap-model seqex
+  (cap-tokens seqex
              :begin (constantly nil)
              :continue #(do %2)
              :end (clj/or finalize identity)))
