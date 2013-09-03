@@ -39,36 +39,48 @@
 
 ; Sequence Expression Library.
 
+(defmethod print-method n01se.seqex.SeqEx [o ^java.io.Writer w]
+  (.write w (str \< o \>)))
+(prefer-method print-method n01se.seqex.SeqEx java.util.Map)
+(prefer-method print-method n01se.seqex.SeqEx clojure.lang.IRecord)
+(prefer-method print-method n01se.seqex.SeqEx clojure.lang.IPersistentMap)
+
 ; Simple cardnality expressions
 (def n0
   (reify SeqEx
     (-begin [_] [Failed Passed])
     (-continue [_ s t] [s s])
-    (-end [_ s] nil)))
+    (-end [_ s] nil)
+
+    Object (toString [_] "n0")))
 
 (def n1
   (reify SeqEx
     (-begin [_] [Passed Failing])
     (-continue [_ s t] [Failed s])
-    (-end [_ s] nil)))
+    (-end [_ s] nil)
+    Object (toString [_] "n1")))
 
 (def n?
   (reify SeqEx
     (-begin [_] [Passed Passing])
     (-continue [_ s t] [Failed s])
-    (-end [_ s] nil)))
+    (-end [_ s] nil)
+    Object (toString [_] "n?")))
 
 (def n*
   (reify SeqEx
     (-begin [_] [Passing Passing])
     (-continue [_ s t] [Passing s])
-    (-end [_ s] nil)))
+    (-end [_ s] nil)
+    Object (toString [_] "n*")))
 
 (def n+
   (reify SeqEx
     (-begin [_] [Passing Failing])
     (-continue [_ s t] [Passing s])
-    (-end [_ s] nil)))
+    (-end [_ s] nil)
+    Object (toString [_] "n+")))
 
 (defrecord Cardnality [low high]
   SeqEx
@@ -231,7 +243,9 @@
     (-continue [_ svs token]
       (combine-results seqexes bit-op -continue svs token))
     (-end [_ svs]
-      (end-fn svs))))
+      (end-fn svs))
+    Object
+    (toString [_] (if (= bit-op bit-and) "and" "or"))))
 
 (defn- se-and "Sequences in which all expressions are true."
   [& seqexes]
@@ -341,7 +355,7 @@
                 Passed
                 Failed))))])
 
-(defrecord Serial [superior-se inferior-ses]
+(defrecord Serial [superior-se inferior-ses name]
   SeqEx
   (-begin [_]
     (-> (root-path superior-se)
@@ -355,43 +369,48 @@
     (some (fn [[[ss sv] ise [is iv] models :as path]]
             (when (clj/and (matching? sv) (matching? iv))
                 (concat models (-end ise is))))
-          paths)))
+          paths))
+  Object
+  (toString [_] (str name)))
+
+(defn mk-serial [superior-se inferior-ses & [name]]
+  (->Serial superior-se inferior-ses (clj/or name "anonymous Serial")))
 
 ;; New API
 
 (defn ord "All seqexes in order." [& seqexes]
-  (->Serial (se-range (count seqexes)) seqexes))
+  (mk-serial (se-range (count seqexes)) seqexes "odr"))
 (defn alt "Alternate between seqexes (pick any one)." [& seqexes]
-  (->Serial n1 seqexes))
+  (mk-serial n1 seqexes "alt"))
 (defn opt "Optionally alternate between seqexes." [& seqexes]
-  (->Serial n? seqexes))
+  (mk-serial n? seqexes "opt"))
 (defn qty+ "One or more seqexes (in any order)." [& seqexes]
-  (->Serial n+ seqexes))
+  (mk-serial n+ seqexes "qty+"))
 (defn qty* "Zero or more seqexes (in any order)." [& seqexes]
-  (->Serial n* seqexes))
+  (mk-serial n* seqexes "qty*"))
 (defn qty
   "Repeat seqexes x times. If x is a single number, then repeat exactly that
   many times. If x is a sequence of two numbers then repeat between the first
   and second number of times. Finally, if x is a sequence of 1 number, repeat
   between 0 and that number of times."
   [x & seqexes]
-  (->Serial (nx x) seqexes))
+  (mk-serial (nx x) seqexes "qty"))
 
 (defn all "All seqexes in any order."
   [& seqexes]
-  (->Serial (permute (se-range (count seqexes))) seqexes))
+  (mk-serial (permute (se-range (count seqexes))) seqexes "all"))
 
 ;; Old API
 
 ;; choosing expressions
-(defn c1 [& seqexes] (->Serial n1 seqexes))
-(defn c? [& seqexes] (->Serial n? seqexes))
-(defn c* [& seqexes] (->Serial n* seqexes))
-(defn c+ [& seqexes] (->Serial n+ seqexes))
-(defn cx [x & seqexes] (->Serial (nx x) seqexes))
+(defn c1 [& seqexes] (mk-serial n1 seqexes))
+(defn c? [& seqexes] (mk-serial n? seqexes))
+(defn c* [& seqexes] (mk-serial n* seqexes))
+(defn c+ [& seqexes] (mk-serial n+ seqexes))
+(defn cx [x & seqexes] (mk-serial (nx x) seqexes))
 
 ;; sequence expressions
-(defn s1 [& seqexes] (->Serial (se-range (count seqexes)) seqexes))
+(defn s1 [& seqexes] (mk-serial (se-range (count seqexes)) seqexes))
 (defn s? [& seqexes] (c? (apply s1 seqexes)))
 (defn s* [& seqexes] (c* (apply s1 seqexes)))
 (defn s+ [& seqexes] (c+ (apply s1 seqexes)))
