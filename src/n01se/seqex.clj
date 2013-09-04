@@ -198,11 +198,11 @@
 ; Arguably, these are the only expressions that need to be macros.
 
 (defn- se-not "Sequences where expression is always Failed."
-  [se]
+  [seqex]
   (reify SeqEx
-    (-begin [_] (-begin se))
+    (-begin [_] (-begin seqex))
     (-continue [_ s t]
-      (let [[s v] (-continue se s t)]
+      (let [[s v] (-continue seqex s t)]
         [s (vbool (= v Failed))]))
     (-end [_ s] nil)))
 
