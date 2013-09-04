@@ -2,7 +2,8 @@
 (ns n01se.seqex
   "Sequence Expressions. Library for describing sequences."
   (:use [n01se.seqex.util :only [transpose ->when ->when-not]]
-        [clojure.pprint :only [pprint]])
+        [clojure.pprint :only [pprint]]
+        [clojure.string :as str :only []])
   (:refer-clojure :exclude [and not or range]))
 
 (alias 'clj 'clojure.core)
@@ -245,7 +246,8 @@
     (-end [_ svs]
       (end-fn svs))
     Object
-    (toString [_] (if (= bit-op bit-and) "and" "or"))))
+    (toString [_] (str/join " " (cons (if (= bit-op bit-and) "and" "or")
+                                      (map pr-str seqexes))))))
 
 (defn- se-and "Sequences in which all expressions are true."
   [& seqexes]
@@ -270,7 +272,9 @@
   (reify SeqEx
     (-begin [_] (-begin seqex))
     (-continue [_ s t] (-continue seqex s (f t)))
-    (-end [_ s] (-end seqex s))))
+    (-end [_ s] (-end seqex s))
+    Object
+    (toString [_] (pr-str 'apply-fn f seqex))))
 
 ; Serial expression: compose muliple seqexes such that they are applied to the
 ; sequence one at a time and limited by a higher order seqex on the indicies of
@@ -371,7 +375,7 @@
                 (concat models (-end ise is))))
           paths))
   Object
-  (toString [_] (str name)))
+  (toString [_] (apply pr-str name inferior-ses)))
 
 (defn mk-serial [superior-se inferior-ses & [name]]
   (->Serial superior-se inferior-ses (clj/or name "anonymous Serial")))
@@ -379,26 +383,26 @@
 ;; New API
 
 (defn ord "All seqexes in order." [& seqexes]
-  (mk-serial (se-range (count seqexes)) seqexes "odr"))
+  (mk-serial (se-range (count seqexes)) seqexes 'ord))
 (defn alt "Alternate between seqexes (pick any one)." [& seqexes]
-  (mk-serial n1 seqexes "alt"))
+  (mk-serial n1 seqexes 'alt))
 (defn opt "Optionally alternate between seqexes." [& seqexes]
-  (mk-serial n? seqexes "opt"))
+  (mk-serial n? seqexes 'opt))
 (defn qty+ "One or more seqexes (in any order)." [& seqexes]
-  (mk-serial n+ seqexes "qty+"))
+  (mk-serial n+ seqexes 'qty+))
 (defn qty* "Zero or more seqexes (in any order)." [& seqexes]
-  (mk-serial n* seqexes "qty*"))
+  (mk-serial n* seqexes 'qty*))
 (defn qty
   "Repeat seqexes x times. If x is a single number, then repeat exactly that
   many times. If x is a sequence of two numbers then repeat between the first
   and second number of times. Finally, if x is a sequence of 1 number, repeat
   between 0 and that number of times."
   [x & seqexes]
-  (mk-serial (nx x) seqexes "qty"))
+  (mk-serial (nx x) seqexes 'qty))
 
 (defn all "All seqexes in any order."
   [& seqexes]
-  (mk-serial (permute (se-range (count seqexes))) seqexes "all"))
+  (mk-serial (permute (clj/range (count seqexes))) seqexes 'all))
 
 ;; Old API
 
@@ -499,7 +503,9 @@
         [nil Failed]))
     (-end [_ result]
       (when-not (nil? result)
-        (list result)))))
+        (list result)))
+    Object
+    (toString [_] (pr-str 'subex seqex))))
 
 (defn se-find
  "Find and return first occurance of seqex in tokens."
