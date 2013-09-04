@@ -498,8 +498,10 @@
   (reify SeqEx
     (-begin [_] [nil Failing])
     (-continue [_ _ token]
-      (if (coll? token)
-        (exec seqex (clj/seq token))
+      (if (clj/or (nil? token)
+                  (string? token)
+                  (coll? token))
+        (exec seqex (seq token))
         [nil Failed]))
     (-end [_ result]
       (when-not (nil? result)
