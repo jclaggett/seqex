@@ -67,19 +67,3 @@
            (-> (se/model math-expr big-example)
                first eval)))
 
-(defn get-output-type [x]
-  (:output (meta x)))
-
-(defn original?
-  "Return true if every output model is an original."
-  [models]
-  (->> models
-       (keep get-output-type)
-       (every? #(= % :original))))
-
-(defn cap-output
-  "Capture and collapse all output tokens found in seqex. The final
-  output-tokens will be an initial model followed by any non-output models."
-  [seqex]
-  )
-
