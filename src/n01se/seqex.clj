@@ -38,6 +38,19 @@
   (error- [_ state] ; return error string
     "Return a description of why the seqex failed given state."))
 
+(defrecord SeqExError [msg seqex-state])
+
+(defn unexpected
+  ([token] (unexpected token SeqExError))
+  ([token state] (SeqExError. (str "Unexpected token: " token) state)))
+
+(defn error [seqex state]
+  (if (= SeqExError (type state))
+    (str (:msg state)
+      (when-not (= SeqExError (:seqex-state state))
+        (str \newline (error- seqex (:seqex-state state)))))
+    (error- seqex state)))
+
 (set! *warn-on-reflection* true)
 
 ; Sequence Expression Library.
@@ -54,6 +67,7 @@
     (begin- [_] [Failed Passed])
     (continue- [_ s t] [s s])
     (model- [_ s] nil)
+    (error- [_ s] "")
     Object (toString [_] "n0")))
 
 (def n1
@@ -61,6 +75,7 @@
     (begin- [_] [Passed Failing])
     (continue- [_ s t] [Failed s])
     (model- [_ s] nil)
+    (error- [_ s] "Missing required token.")
     Object (toString [_] "n1")))
 
 (def n?
@@ -68,6 +83,7 @@
     (begin- [_] [Passed Passing])
     (continue- [_ s t] [Failed s])
     (model- [_ s] nil)
+    (error- [_ s] "")
     Object (toString [_] "n?")))
 
 (def n*
@@ -75,6 +91,7 @@
     (begin- [_] [Passing Passing])
     (continue- [_ s t] [Passing s])
     (model- [_ s] nil)
+    (error- [_ s] "")
     Object (toString [_] "n*")))
 
 (def n+
@@ -82,6 +99,7 @@
     (begin- [_] [Passing Failing])
     (continue- [_ s t] [Passing s])
     (model- [_ s] nil)
+    (error- [_ s] "At least one token required.")
     Object (toString [_] "n+")))
 
 (defrecord Cardnality [low high]
@@ -95,7 +113,8 @@
        (< s  high) Passing
        (= s  high) Passed
        (> s  high) Failed)])
-  (model- [_ s] nil))
+  (model- [_ s] nil)
+  (error- [_ s] (str "Missing " (- low s) " required token(s).")))
 
 (defn nx [x] (if (sequential? x)
                (condp = (count x)
@@ -116,7 +135,11 @@
                         [false (if (clj/and first-time? (= literal token))
                                  Passed
                                  Failed)])
-           :model- (constantly nil)}))
+           :model- (constantly nil)
+           :error- (fn [literal first-time?]
+                     (str (when first-time?
+                            "Missing token.\n")
+                       "Expected " (class literal) ": " literal))}))
 
 ; functions and delay refs
 (extend-protocol SeqEx
@@ -481,9 +504,11 @@
     (if (empty? ts)
       pair
       (if (continue? verdict)
-        (recur (continue- seqex state token) more)
-        ;; Indicate failure since there were unconsumed tokens.
-        [state Failed]))))
+        (let [[state verdict :as pair] (continue- seqex state token)]
+          (if (failed? verdict)
+            [(unexpected token state) Failed]
+            (recur pair more)))
+        [(unexpected token) Failed]))))
 
 (defn valid?
   "Returns true when tokens are a valid input for seqex."
