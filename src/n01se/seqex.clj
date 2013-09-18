@@ -540,14 +540,6 @@
     Object
     (toString [_] (pr-str 'subex seqex))))
 
-(defn se-find
- "Find and return first occurance of seqex in tokens."
-  [seqex tokens]
-  )
-
-(defn se-seq [seqex tokens]
-  "Find and return a sequence of all non-overlapping occurances of seqex.")
-
 ;; define our own defmacro but do it near the bottom for obvious reasons.
 (clj/defmacro defmacro
   "Return a named macro defined by a seqex that is applied to the macro's
