@@ -27,15 +27,8 @@
 
 (defn op
   "Operator. Captured as function."
-  [literal func]
-  (se/cap-one literal #(do %1 func)))
-
-(def -sub (op \- -))
-(def -add (op \+ +))
-(def -mul (op \* *))
-(def -div (op \/ /))
-(def -mod (op \% mod))
-(def -pow (op \^ #(Math/pow %1 %2)))
+  ([literal] (op literal (resolve (symbol (str literal)))))
+  ([literal, func] (se/cap-one literal #(do %1 func))))
 
 (defn bin-expr
   "Left to right associative, infix binary expressions. Captured as
@@ -53,9 +46,9 @@
 
 (declare add-expr) ;; allows atom-expr to refer to add-expr
 (def atom-expr (se/alt number (se/ord \( ws (delay add-expr) ws \))))
-(def pow-expr (bin-expr atom-expr -pow))
-(def mul-expr (bin-expr pow-expr -mul -div -mod))
-(def add-expr (bin-expr mul-expr -add -sub))
+(def pow-expr (bin-expr atom-expr (op \^ #(Math/pow %1 %2))))
+(def mul-expr (bin-expr pow-expr (op \*) (op \/) (op \%)))
+(def add-expr (bin-expr mul-expr (op \+) (op \-)))
 (def math-expr add-expr)
 
 (def big-example "2^(.2 + +2e+0) * (-1.E-1/(0--1) - 12.3)")
@@ -64,6 +57,6 @@
            (se/valid? math-expr big-example)))
 
 (assert (= (* (Math/pow 2 (+ 0.2 2e+0)) (- (/ -1.0E-1 (- 0 -1)) 12.3))
-           (-> (se/model math-expr big-example)
+           (-> (se/models math-expr big-example)
                first eval)))
 
