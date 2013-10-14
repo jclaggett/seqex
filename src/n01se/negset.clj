@@ -40,28 +40,27 @@
   (separate (partial satisfies? Negative) sets))
 
 (defn union [& sets]
-  (let [[pos neg :as both] (separate-pos-neg sets)
-        pos (when-not (empty? pos)
-              (apply s/union pos))
-        neg (when-not (empty? neg)
-              (apply s/intersection (map complement neg)))]
+  (let [[pos neg :as both] (separate-pos-neg sets)]
     (case (map empty? both)
       [false false] (complement (s/difference
-                                  neg
-                                  pos))
-      [false true ] (complement neg)
-      [true  false] pos
+                                  (apply s/intersection (map complement neg))
+                                  (apply s/union pos)))
+      [false true ] (apply s/union pos)
+      [true  false] (complement (apply s/intersection (map complement neg)))
       [true  true ] nil))
   )
 
-(defn intersection [a b]
-  (case [(satisfies? Negative a) (satisfies? Negative b)]
-    [false false] (clojure.set/intersection a b)
-    [false true ] (clojure.set/difference a (complement b))
-    [true  false] (clojure.set/difference b (complement a))
-    [true  true ] (complement (clojure.set/union
-                                (complement a)
-                                (complement b)))))
-(defn difference [a b])
+(defn intersection [& sets]
+  (let [[pos neg :as both] (separate-pos-neg sets)]
+    (case (map empty? both)
+      [false false] (s/difference
+                      (apply s/intersection pos)
+                      (apply s/union (map complement neg)))
+      [false true ] (apply s/intersection pos)
+      [true  false] (complement (apply s/union (map complement neg)))
+      [true  true ] nil)))
+
+(defn difference [a & sets]
+  )
 (defn subset? [a b])
 (defn superset? [a b])
