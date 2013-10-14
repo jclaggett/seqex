@@ -7,7 +7,11 @@
                       :comments "same as Clojure"}
             :min-lein-version "2.0.0"
 
-            :dependencies [[criterium "0.3.1"] [org.clojure/clojure "1.5.1"]]
+            :dependencies [[criterium "0.3.1"]
+                           [org.clojure/clojure "1.5.1"]
+                           [org.clojure/tools.nrepl "0.2.3"]
+                           [clojure-complete "0.2.3"]]
+
 
             ;; Describe a performance specific test profile
             :test-selectors {:default (complement :perf), :perf :perf}
