@@ -434,12 +434,17 @@
                          (conj parent-path))))
               (reduce inspect new-paths)))
 
+          (novel-path? [new-paths [[ss _] ise [is _] :as path]]
+            (nil? (some (fn [[[ss2 _] ise2 [is2 _]]]
+                          (clj/and (= ss ss2) (= ise ise2) (= is is2)))
+                        new-paths)))
+
           (inspect [new-paths [[ss sv] ise [is iv] :as path]]
             (-> new-paths
-              (->when-not (contains? new-paths path)
-                          (conj path)
-                          (->when (clj/and (continue? sv) (matching? iv))
-                                  (branch path)))))]
+              (->when (novel-path? new-paths path)
+                  (conj path)
+                  (->when (clj/and (continue? sv) (matching? iv))
+                      (branch path)))))]
     (reduce inspect [] old-paths)))
 
 (defn- judge-paths
