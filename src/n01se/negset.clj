@@ -26,6 +26,8 @@
 
   Negative)
 
+#_(alter-var-root #'*data-readers* assoc 'neg ->NegSet)
+
 (defmethod print-method NegSet [x w]
   (binding [*out* w]
     (print (apply str (concat ["#-{"]
