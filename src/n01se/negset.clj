@@ -56,13 +56,15 @@
 ;; Convenience macro for defining the behavior of various combinations
 ;; of positive and negative sets.
 (defmacro case-sets [s1 s2 c1 c2 c3 c4]
-  `(case [(satisfies? Negative ~s1) (satisfies? Negative ~s2)]
+  `(case [(satisfies? Negative ~s1)
+          (satisfies? Negative ~s2)]
      [false false] ~c1
      [false true ] ~c2
      [true  false] ~c3
      [true  true ] ~c4))
 
 (defn intersect?
+  "Is at least one element of set1 shared with set2?"
   [set1 set2]
   (case-sets set1 set2
     (s-intersect? set1 set2)
@@ -71,20 +73,26 @@
     true)) ;; always intersect on finite computers
 
 (defn disjoint?
+  "Are no elements in set1 shared with set2?"
   [set1 set2]
   (not (intersect? set1 set2)))
 
 (defn subset? [set1 set2]
+  "Are all elements in set1 also in set2?"
   (case-sets set1 set2
     (s/subset? set1 set2)
     (not (s-intersect? set1 (complement set2)))
     false ;; never a subset on finite computers
     (s/subset? (complement set2) (complement set1))))
 
-(defn superset? [set1 set2]
+(defn superset?
+  "Are all elements in set2 also in set1?"
+  [set1 set2]
   (subset? set2 set1))
 
-(defn union [& sets]
+(defn union
+  "Return a set containing elements in all sets."
+  [& sets]
   (reduce
    (fn
      ([] nil)
@@ -98,7 +106,9 @@
             (complement (s/intersection (complement set1) (complement set2)))))))
    sets))
 
-(defn intersection [& sets]
+(defn intersection
+  "Return a set containing only elements that are members of all sets."
+  [& sets]
   (reduce
    (fn
      ([] nil)
@@ -112,7 +122,10 @@
             (complement (s/union (complement set1) (complement set2)))))))
    sets))
 
-(defn difference [& sets]
+(defn difference
+  "Return a set containing elements of the first set that are not also elements
+  in the following sets."
+  [& sets]
   (reduce
    (fn
      ([] nil)
@@ -125,3 +138,35 @@
             (complement (s/union (complement set1) set2))
             (s/difference (complement set2) (complement set1))))))
    sets))
+
+;; Define other set operators for completeness
+(defn symetric-difference
+  "Return a set of elements that are found in set1 or in set2 but not in both."
+  [set1 set2]
+  (difference (union set1 set2)
+              (intersection set1 set2)))
+
+(defn proper-subset?
+  [set1 set2]
+  (and (not= set1 set2)
+       (subset? set1 set2)))
+
+(defn proper-superset? [set1 set2]
+  (proper-subset? set2 set1))
+
+;; Define set notation. Because Unicode.
+
+(def ∁ complement)
+(def ∪ union)
+(def ∩ intersection)
+(def ∖ difference)
+(def ⊖ symetric-difference)
+(def △ symetric-difference)
+(def ∅ #{})
+(def ⊆ subset?)
+(def ⊇ superset?)
+(def ⊂ proper-subset?)
+(def ⊃ proper-superset?)
+(def ∋ contains?)
+(def U (∁ ∅))
+
