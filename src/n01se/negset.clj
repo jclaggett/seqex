@@ -21,6 +21,9 @@
   (equiv [_ other] (and (instance? NegSet other)
                         (= non-elems (.non-elems other))))
 
+  clojure.lang.IFn
+  (invoke [_ x] (when-not (contains? non-elems x) x))
+
   Complement
   (complement [_] non-elems)
 
