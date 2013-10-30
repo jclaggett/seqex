@@ -140,21 +140,23 @@ tokens are matching and when it is done examining the input tokens.
 
 The second purpose of sequence expressions is to build up and return a 'model'
 based on the tokens examined. Technically, a Seqex is expected to return a
-(possibly empty) sequence of models.
+(possibly empty) sequence of arbitrary clojure data (i.e., models).
 
-The model(s) are finalized and returned when `se/-end` is called and the
-model(s) can be initialized and updated up when `se/-begin` and `se/-continue`
-are called. Most standard Seqexes do not build any model at all and ususally
-return an empty sequence of models. The exceptions to this are the standard
-capturing seqexes: `se/cap`, `se/cap-one` and `se/recap`.
+The model(s) are finalized and returned when `se/model-` is called and the
+model(s) are initialized and updated up when `se/begin-` and `se/continue-` are
+called. Most standard Seqexes do not build any models at all and so return an
+empty sequence of models. The exceptions to this are the standard capturing
+seqexes: `se/cap`, `se/cap-one`, `se/cap-many` and `se/recap`.
 
-`se/cap` and `se/cap-one` require a Seqex and both may have an optional finalize
-function. `se/cap` captures all tokens examined by Seqex that were not judged
-with an Invalid verdict. `se/cap-one` captures only the last non-Invalid token.
-The captured token(s) are either then immediately returned or are passed to
-finalize and its return value is used in their place. Any sub-models created by
-the Seqex under `se/cap` or `se/cap-one` are then appended after the captured
-tokens.
+TODO revise this secton:
+`se/cap`, `se/cap-one`, and `se/cap-many` all take a Seqex and an
+optional finalize function. `se/cap` captures all tokens examined by Seqex
+and either returns a single vector
+were not judged with an Invalid verdict. `se/cap-one` captures only the last
+non-Invalid token.  The captured token(s) are either then immediately returned
+or are passed to finalize and its return value is used in their place. Any
+sub-models created by the Seqex under `se/cap` or `se/cap-one` are then appended
+after the captured tokens.
 
 In constrast, `se/recap` does not capture tokens at all. Instead it wraps a
 Seqex (like `se/cap`) and requires a finalize function which takes all models

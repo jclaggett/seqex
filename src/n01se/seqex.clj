@@ -4,7 +4,7 @@
   (:use [n01se.seqex.util :only [transpose ->when ->when-not]]
         [clojure.pprint :only [pprint]]
         [clojure.string :as str :only []])
-  (:refer-clojure :exclude [and not or range defmacro]))
+  (:refer-clojure :exclude [and not or range]))
 
 (alias 'clj 'clojure.core)
 
@@ -570,7 +570,7 @@
     (error- [_ [state model]]
       (error- seqex state))))
 
-(defn cap
+(defn cap-many
   "Capture all non-invalid tokens examined by seqex. Return a vector of tokens
   unless finalize is specified and instead pass the token vector to finalize and
   use its return value instead. The resulting 'model' is prepended to any
@@ -587,6 +587,14 @@
              :begin (constantly nil)
              :continue #(do %2)
              :end (clj/or finalize identity)))
+
+(defn cap
+  "Capture all non-invalid tokens examined by seqex. Return a vector of tokens
+  unless finalize is specified in which case apply finalize to the token vector
+  and treat its return value as a single result."
+  [seqex & [finalize]]
+  (cap-tokens seqex
+              :end #(apply (clj/or finalize identity) %)))
 
 (defn recap
   "Apply finalize to all returned models by seqex and treat its result as a
@@ -653,17 +661,15 @@
     (toString [_] (pr-str 'subex seqex))))
 
 ;; define our own defmacro but do it near the bottom for obvious reasons.
-(clj/defmacro defmacro
+(defmacro defsyntax
   "Return a named macro defined by a seqex that is applied to the macro's
   arguments."
   [name seqex]
-  `(clj/defmacro ~name [& tokens#]
-     (let [[forms# verdict#] (exec ~seqex tokens#)]
-       (if (matching? verdict#)
-         (if (= 1 (count forms#))
-           (first forms#)
-           `(do ~@forms#))))
-     `(do ~@(models ~seqex tokens#))))
+  `(defmacro ~name [& tokens#]
+     (let [forms# (models ~seqex tokens#)]
+       (if (= 1 (count forms#))
+         (first forms#)
+         `(do ~@forms#)))))
 
 ;; Rename all the se-* expressions that overwrite built in names. Do this near
 ;; the bottom of the file so as to reduce the chance of accidentally using
