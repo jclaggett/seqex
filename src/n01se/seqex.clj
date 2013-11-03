@@ -598,7 +598,17 @@
   and treat its return value as a single result."
   [seqex & [finalize]]
   (cap-tokens seqex
-              :end #(apply (clj/or finalize identity) %)))
+              :end #(apply (clj/or finalize vector) %)))
+
+(defn recap-many
+  "Apply finalize to all returned models by seqex and treat its result as a
+  sequence of new models."
+  [seqex finalize]
+  (reify SeqEx
+    (begin- [_] (begin- seqex))
+    (continue- [_ state token] (continue- seqex state token))
+    (model- [_ state] (finalize (model- seqex state)))
+    (error- [_ [state model]] (error- seqex state))))
 
 (defn recap
   "Apply finalize to all returned models by seqex and treat its result as a
@@ -607,7 +617,7 @@
   (reify SeqEx
     (begin- [_] (begin- seqex))
     (continue- [_ state token] (continue- seqex state token))
-    (model- [_ state] (finalize (model- seqex state)))
+    (model- [_ state] (vector (apply finalize (model- seqex state))))
     (error- [_ [state model]] (error- seqex state))))
 
 ;; API for using seqexes
