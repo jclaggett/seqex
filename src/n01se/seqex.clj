@@ -133,14 +133,16 @@
                (->Cardnality x x)))
 
 ; literal expressions
+(defprotocol LitEx)
 (doseq [T [nil clojure.lang.ArraySeq clojure.lang.Keyword
            clojure.lang.LazySeq clojure.lang.Cons
            clojure.lang.PersistentHashSet clojure.lang.PersistentList
            clojure.lang.PersistentVector clojure.lang.Symbol
            java.lang.Character java.lang.Double java.lang.Long
            java.lang.String]]
-  (extend T SeqEx
-          {:begin- (constantly [true Failing])
+  (extend T
+    LitEx {}
+    SeqEx {:begin- (constantly [true Failing])
            :continue- (fn [literal first-time? token]
                         [false (if (clj/and first-time? (= literal token))
                                  Passed
