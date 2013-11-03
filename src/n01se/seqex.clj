@@ -642,7 +642,7 @@
   [seqex tokens]
   (matching? (second (exec seqex tokens))))
 
-(defn models
+(defn parse
   "Executes seqex against tokens returning any captured model."
   [seqex tokens]
   (let [[state verdict] (exec seqex tokens)]
