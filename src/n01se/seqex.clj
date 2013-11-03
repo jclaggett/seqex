@@ -304,23 +304,25 @@
                                     (bit-or final-verdict
                                             new-verdict))))))))))
 
+(defrecord LogicEx [seqexes bit-op end-fn error-fn]
+  SeqEx
+  (begin- [_]
+    (combine-results seqexes bit-op (fn [seqex _ _] (begin- seqex))))
+  (continue- [_ state token]
+    (combine-results seqexes bit-op continue- state token))
+  (model- [_ state]
+    (end-fn state))
+  (error- [_ state]
+    (error-fn state))
+  Object
+  (toString [_] (str/join " " (cons (if (= bit-op bit-and) "and" "or")
+                                    (map pr-str seqexes)))))
 (defn- logic-combine
   "Sequences in which all seqexes are logically related. Short
   circuits if possible. Calls end-fn with a list of last state and
   verdict pairs for each seqex."
   [seqexes bit-op end-fn error-fn]
-  (reify SeqEx
-    (begin- [_]
-      (combine-results seqexes bit-op (fn [seqex _ _] (begin- seqex))))
-    (continue- [_ state token]
-      (combine-results seqexes bit-op continue- state token))
-    (model- [_ state]
-      (end-fn state))
-    (error- [_ state]
-      (error-fn state))
-    Object
-    (toString [_] (str/join " " (cons (if (= bit-op bit-and) "and" "or")
-                                      (map pr-str seqexes))))))
+  (->LogicEx seqexes bit-op end-fn error-fn))
 
 (defn verdict [pred]
   (fn [[_ _ verdict :as ssv]]
