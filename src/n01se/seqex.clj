@@ -678,3 +678,22 @@
 (def not se-not)
 (def or se-or)
 (def range se-range)
+
+
+(comment "isomorphs: things that do the same thing."
+         (qty+ n1) == n+
+         (qty* n1) == n*
+         (qty x n1) == (nx x)
+
+         (alt x y z) == (or x y z)
+
+         (qty* (qty* x y z)) == (qty* x y z)
+         (qty* (qty+ x y z)) == (qty* x y z)
+         (qty* (opt x y z)) == (qty* x y z)
+         (qty* (alt x y z)) == (qty* x y z)
+         (qty* (or x y z)) == (qty* x y z)
+
+         (qty+ (qty+ x y z)) == (qty+ x y z)
+         (qty+ (qty* x y z)) == (qty* x y z)
+         (qty+ (opt x y z)) == (qty* x y z)
+         )
