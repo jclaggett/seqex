@@ -674,17 +674,6 @@
     Object
     (toString [_] (pr-str 'subex seqex))))
 
-;; define our own defmacro but do it near the bottom for obvious reasons.
-(defmacro defsyntax
-  "Return a named macro defined by a seqex that is applied to the macro's
-  arguments."
-  [name seqex]
-  `(defmacro ~name [& tokens#]
-     (let [forms# (models ~seqex tokens#)]
-       (if (= 1 (count forms#))
-         (first forms#)
-         `(do ~@forms#)))))
-
 ;; Rename all the se-* expressions that overwrite built in names. Do this near
 ;; the bottom of the file so as to reduce the chance of accidentally using
 ;; those expressions during implementation.
