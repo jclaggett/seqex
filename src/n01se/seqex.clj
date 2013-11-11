@@ -37,12 +37,18 @@
     "Finish by calculating zero or more models from state.")
   (error- [_ state] ; return error string
     "Return a description of why the seqex failed given state."))
-
 ;; Useful for navigation
 (defprotocol Tree
-  (children [_] "Return immediate children of tree node."))
+  (children- [_] "Return immediate children of tree node."))
+
+(defn children [x]
+  (if (= clojure.lang.Delay (type x))
+    (children- (deref x))
+    (children- x)))
 
 (defrecord SeqExError [msg seqex-state])
+
+(def subex-error-msg "Nested rule failed:")
 
 (defn error-msg
   ([msg] (error-msg msg SeqExError))
@@ -53,8 +59,10 @@
     (-> [(:msg state)]
       (->when (not= SeqExError (:seqex-state state))
               (concat (let [msgs (error- seqex (:seqex-state state))]
-                        (cons (str "Expected " (first msgs))
-                              (rest msgs))))))
+                        (if (= (first msgs) subex-error-msg)
+                          msgs
+                          (cons (str "Expected " (first msgs))
+                                (rest msgs)))))))
     (error- seqex state)))
 
 (defn format-errors [errors & {:keys [pad] :or {pad ""}}]
@@ -83,16 +91,16 @@
     (model- [_ s] nil)
     (error- [_ s] [])
     Object (toString [_] "n0")
-    Tree (children [_] nil)))
+    Tree (children- [_] nil)))
 
 (def n1
   (reify SeqEx
     (begin- [_] [Passed Failing])
     (continue- [_ s t] [Failed s])
     (model- [_ s] nil)
-    (error- [_ s] ["any one token"])
+    (error- [_ s] ["any one value"])
     Object (toString [_] "n1")
-    Tree (children [_] nil)))
+    Tree (children- [_] nil)))
 
 (def n?
   (reify SeqEx
@@ -101,7 +109,7 @@
     (model- [_ s] nil)
     (error- [_ s] [])
     Object (toString [_] "n?")
-    Tree (children [_] nil)))
+    Tree (children- [_] nil)))
 
 (def n*
   (reify SeqEx
@@ -110,16 +118,16 @@
     (model- [_ s] nil)
     (error- [_ s] [])
     Object (toString [_] "n*")
-    Tree (children [_] nil)))
+    Tree (children- [_] nil)))
 
 (def n+
   (reify SeqEx
     (begin- [_] [Passing Failing])
     (continue- [_ s t] [Passing s])
     (model- [_ s] nil)
-    (error- [_ s] ["at least one token"])
+    (error- [_ s] ["at least one value"])
     Object (toString [_] "n+")
-    Tree (children [_] nil)))
+    Tree (children- [_] nil)))
 
 (defrecord Cardnality [low high]
   SeqEx
@@ -133,8 +141,8 @@
        (= s  high) Passed
        (> s  high) Failed)])
   (model- [_ s] nil)
-  (error- [_ s] [(str (- low s) " token(s)")])
-  Tree (children [_] nil))
+  (error- [_ s] [(str (- low s) " value(s)")])
+  Tree (children- [_] nil))
 
 (defn nx [x] (if (sequential? x)
                (condp = (count x)
@@ -146,6 +154,7 @@
 (defprotocol LitEx)
 (doseq [T [nil clojure.lang.ArraySeq clojure.lang.Keyword
            clojure.lang.LazySeq clojure.lang.Cons
+           clojure.lang.PersistentArrayMap
            clojure.lang.PersistentHashSet clojure.lang.PersistentList
            clojure.lang.PersistentVector clojure.lang.Symbol
            java.lang.Character java.lang.Double java.lang.Long
@@ -160,7 +169,7 @@
            :model- (constantly nil)
            :error- (fn [literal _]
                      [(pr-str literal)])}
-    Tree {:children (constantly nil)}))
+    Tree {:children- (constantly nil)}))
 
 ; functions and delay refs
 (extend-protocol SeqEx
@@ -173,7 +182,12 @@
              Failed)])
   (model- [_ _] nil)
   (error- [pred _]
-    [(pr-str pred)])
+    [(get {symbol? "symbol"
+           keyword? "keyword"
+           vector? "vector"
+           map? "map"}
+          pred
+          (pr-str pred))])
 
   ;; Delays are assumed to hold a seqex to be used.
   clojure.lang.Delay
@@ -184,9 +198,9 @@
 
 (extend-protocol Tree
   clojure.lang.Fn
-  (children [_] nil)
+  (children- [_] nil)
   clojure.lang.Delay
-  (children [d] (children @d)))
+  #_(children- [d] (pprint (type @d)) @d))
 
 ;; Some generic value comparison operations
 (defn gt [x] #(pos? (compare % x)))
@@ -207,7 +221,7 @@
     (begin- [_] (continue- _ nil unique-value))
     (continue- [_ s t] [t (vbool (not= s t))])
     (model- [_ s] nil)
-    (error- [_ s] [(str "any token not equal to previous token: " (pr-str s))])))
+    (error- [_ s] [(str "any value not equal to previous value: " (pr-str s))])))
 
 (def asc "Sequences of values greater than or equal to previous values."
   (reify SeqEx
@@ -273,7 +287,7 @@
     (model- [_ s] nil)
     (error- [_ s] ["failure by seqex (lame error message)"])
     Tree
-    (children [_] [seqex])))
+    (children- [_] [seqex])))
 
 ;; sva: triple of [state, verdict, active]
 ;; svas: multiple sva triples
@@ -334,7 +348,7 @@
   (error- [_ state]
     (error-fn state))
   Tree
-  (children [_] seqexes)
+  (children- [_] seqexes)
 
   Object
   (toString [_] (str/join " " (cons (if (= bit-op bit-and) "and" "or")
@@ -401,7 +415,7 @@
     Object
     (toString [_] (pr-str 'apply-fn f seqex))
     Tree
-    (children [_] [seqex])))
+    (children- [_] [seqex])))
 
 ; Serial expression: compose muliple seqexes such that they are applied to the
 ; sequence one at a time and limited by a higher order seqex on the indicies of
@@ -426,7 +440,14 @@
 (defn pr-paths "Useful debugging tool."
   [paths msg]
   (println msg)
-  (doseq [p paths] (println "  path:" p))
+  (pprint paths)
+
+  #_(doseq [[[ss sv] ise [is iv]] paths]
+    (pprint {:ss ss
+             :sv sv
+             :ise ise
+             :is is
+             :iv iv}))
   paths)
 
 (defn- root-path
@@ -535,8 +556,7 @@
   Object
   (toString [_] (apply pr-str name inferior-ses))
 
-  Tree
-  (children [_] inferior-ses))
+  Tree (children- [_] inferior-ses))
 
 (defn mk-serial [superior-se inferior-ses & [name]]
   (->Serial superior-se inferior-ses (clj/or name "anonymous Serial")))
@@ -601,7 +621,7 @@
     (error- [_ [state model]]
       (error- seqex state))
     Tree
-    (children [_] [seqex])))
+    (children- [_] [seqex])))
 
 (defn cap-many
   "Capture all non-invalid tokens examined by seqex. Return a vector of tokens
@@ -639,7 +659,7 @@
     (model- [_ state] (finalize (model- seqex state)))
     (error- [_ [state model]] (error- seqex state))
     Tree
-    (children [_] [seqex])))
+    (children- [_] [seqex])))
 
 (defn recap
   "Apply finalize to all returned models by seqex and treat its result as a
@@ -651,7 +671,7 @@
     (model- [_ state] (vector (apply finalize (model- seqex state))))
     (error- [_ [state model]] (error- seqex state))
     Tree
-    (children [_] [seqex])))
+    (children- [_] [seqex])))
 
 ;; API for using seqexes
 (defn exec
@@ -661,14 +681,14 @@
          [token & more :as ts] tokens]
     (if (empty? ts)
       (if (failing? verdict)
-        [(error-msg (str "Missing token") state) verdict]
+        [(error-msg (str "Missing value") state) verdict]
         pair)
       (if (continue? verdict)
         (let [[state verdict :as pair] (continue- seqex state token)]
           (if (failed? verdict)
-            [(error-msg (str "Bad token: " (pr-str token)) state) Failed]
+            [(error-msg (str "Bad value: " (pr-str token)) state) Failed]
             (recur pair more)))
-        [(error-msg (str "Extra token: " (pr-str token))) Failed]))))
+        [(error-msg (str "Extra value: " (pr-str token))) Failed]))))
 
 (defn valid?
   "Returns true when tokens are a valid input for seqex."
@@ -702,11 +722,11 @@
         (list (model- seqex result))))
     (error- [_ state]
       (if (= not-seqable state)
-       ["seqable (nil, string or collection)."]
-       ["sub-expr:" (error- seqex state)]))
+        ["seqable (nil, string or collection)."]
+        [subex-error-msg (error seqex state)]))
     Object
     (toString [_] (pr-str 'subex seqex))
-    Tree (children [_] [seqex])))
+    Tree (children- [_] [seqex])))
 
 ;; Rename all the se-* expressions that overwrite built in names. Do this near
 ;; the bottom of the file so as to reduce the chance of accidentally using
