@@ -42,20 +42,20 @@
   (with-meta (apply se/qty* forms)
     {:bnf :rep*}))
 
-(defn vform [sub-form]
+(defn vec-form [sub-form]
   (with-meta (se/and vector? (se/subex sub-form))
     {:bnf :vec}))
 
-(defn lform [sub-form]
+(defn list-form [sub-form]
   (with-meta (se/and list? (se/subex sub-form))
     {:bnf :list}))
 
-(defn mform [sub-form]
+(defn map-form [sub-form]
   (with-meta (se/and map? (se/subex sub-form))
     {:bnf :map}))
 
-(defn mpair [k-form v-form]
-  (with-meta (se/subex (cat k-form v-form))
+(defn map-pair [k-form v-form]
+  (with-meta (se/subex (se/ord k-form v-form))
     {:bnf :map-pair}))
 
 (defn rule [rule form]
@@ -115,14 +115,12 @@
 (defn rule-name [seqex]
   (-> seqex meta :rule))
 
-(defn format-rule [before between after items & [suffix]]
+(defn format-rule [items between suffix unwrap?]
   (let [hl (partial ansi [bold blue])]
-    (str (if (= 1 (count items))
-           (first items)
-           (items-str (hl before)
-                      (hl between)
-                      (hl after)
-                      items))
+    (str (items-str (if unwrap? "" (hl "("))
+                    (hl between)
+                    (if unwrap? "" (hl ")"))
+                    items)
          (when suffix
            (hl suffix)))))
 
@@ -142,28 +140,37 @@
       (if-let [terminal-name (-> seqex meta :terminal)]
         (ansi [bold cyan] terminal-name)
         (let [bnf (-> seqex meta :bnf)
-              sub-rules (map #(clj-format % bnf) (se/children seqex))]
-          (case (when (instance? clojure.lang.IMeta seqex)
-                  bnf)
-            :or   (format-rule "(" " | " ")" sub-rules)
-            :and  (format-rule "(" " & " ")" sub-rules)
-            :cat  (if (clj/or (= :cat parent)
-                              (= nil parent)
-                              (= 1 (count-cat-forms seqex)))
-                    (format-rule "" " " "" sub-rules)
-                    (format-rule "(" " " ")" sub-rules))
-            :opt  (format-rule "(" " | " ")" sub-rules "?")
-            :rep+ (format-rule "(" " | " ")" sub-rules "+")
-            :rep* (format-rule "(" " | " ")" sub-rules "*")
+              sub-rules (map #(clj-format % (if (nil? bnf) :noop bnf))
+                             (se/children seqex))
+              one-child? (= 1 (count sub-rules))
+              one-cat-child? (= 1 (count-cat-forms seqex))
+              top-level? (nil? parent)
+              cat-parent? (= :cat parent)]
+          (case (when (instance? clojure.lang.IMeta seqex) bnf)
+            :or (do (pprint {'top-level? top-level?
+                             'one-child? one-child?})
+                    (format-rule sub-rules " | " nil
+                                 (clj/or top-level? one-child?)))
+            :and (format-rule sub-rules " & " nil
+                              (clj/or top-level? one-child?))
+            :cat (format-rule sub-rules  " "  nil
+                              (clj/or top-level? one-cat-child? cat-parent?))
+            :opt (format-rule sub-rules " | " "?"
+                               one-child?)
+            :rep+ (format-rule sub-rules " | " "+"
+                               one-child?)
+            :rep* (format-rule sub-rules " | " "*"
+                               one-child?)
+            :map-pair (format-rule sub-rules " " nil
+                                   top-level?)
             :vec  (str "[" (second sub-rules) "]")
             :list (str "(" (second sub-rules) ")")
             :map  (str "{" (second sub-rules) "}")
-            :map-pair (format-rule "(" " " ")" sub-rules)
             nil   (if (satisfies? se/LitEx seqex)
                     (pr-str seqex)
                     (if (clj/and (satisfies? se/Tree seqex)
                                  (seq (se/children seqex)))
-                      (items-str "" "" "" sub-rules)
+                      (items-str "" " " "" sub-rules)
                       (ansi red (pr-str seqex))))
             ))))))
 
@@ -243,7 +250,7 @@
 (defmacro defsyntax
   "Return a macro defined so that seqex is applied to the macro's
   arguments and the returned models from seqex are the results."
-  {:seqex (rule 'defsyntax (lform (cat 'defsyntax def-seqex)))}
+  {:seqex (rule 'defsyntax (list-form (cat 'defsyntax def-seqex)))}
   [& forms]
   (parse-forms
    (se/recap def-seqex
@@ -251,7 +258,7 @@
                `(let [body# ~body]
                   (defmacro ~macro-name ~@doc
                     {:seqex (rule '~macro-name
-                                  (lform (cat '~macro-name body#)))}
+                                  (list-form (cat '~macro-name body#)))}
                     [& forms#]
                     (parse-forms body# forms#)))))
    forms))
@@ -265,16 +272,19 @@
 (declare binding-form)
 
 (defrule binding-vec
-  (vform (cat (rep* (delay binding-form))
-              (opt (cat :as symbol)))))
+  (vec-form (cat (rep* (delay binding-form))
+                 (opt (cat :as symbol)))))
 
 (defrule binding-map
-  (mform (rep* (mpair symbol form)
-               (mpair :as symbol)
-               (rule 'keys
-                     (mpair (or :keys :strs :syms) (vform (rep* symbol))))
-               (rule 'defaults
-                     (mpair :or (mform (rep* (mpair symbol form))))))))
+  (map-form (rep* (map-pair symbol form)
+                  (map-pair :as symbol)
+                  (rule 'keys
+                        (map-pair (or :keys :strs :syms)
+                                  (vec-form (rep* symbol))))
+                  (rule 'defaults
+                        (map-pair :or
+                                  (map-form (rep* (map-pair symbol
+                                                            form))))))))
 
 (defrule binding-form
   (or symbol binding-vec binding-map))
@@ -283,7 +293,7 @@
   (cat binding-form form))
 
 (defsyntax let2
-  (cat (vform (rep* binding-pair)) (rep* form)))
+  (cat (vec-form (rep* binding-pair)) (rep* form)))
 
 ;; make some test expressions
 (def b (rule 'b-syntax (cat 1 (rule 'bfoo (opt 2)) 3)))
