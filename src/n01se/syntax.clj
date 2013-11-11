@@ -3,7 +3,7 @@
             [clojure.pprint :refer [pprint]]
             [n01se.seqex :as se]
             [n01se.seqex.util :refer [->when ->when-not]])
-  (:refer-clojure :exclude [vector symbol and not or]))
+  (:refer-clojure :exclude [symbol and not or]))
 (alias 'clj 'clojure.core)
 
 ;; Define the 'API' for defining clojure syntax.
@@ -12,7 +12,6 @@
 (def form (vary-meta se/n1 assoc :terminal 'form))
 (def symbol (vary-meta symbol? assoc :terminal 'symbol))
 (def string (vary-meta string? assoc :terminal 'string))
-(def vector (vary-meta vector? assoc :terminal 'vector))
 
 ;; groupings
 (defn cat [& forms]
@@ -44,12 +43,20 @@
     {:bnf :rep*}))
 
 (defn vform [sub-form]
-  (with-meta (and vector? (se/subex sub-form))
+  (with-meta (se/and vector? (se/subex sub-form))
     {:bnf :vec}))
 
 (defn lform [sub-form]
-  (with-meta (and list? (se/subex sub-form))
+  (with-meta (se/and list? (se/subex sub-form))
     {:bnf :list}))
+
+(defn mform [sub-form]
+  (with-meta (se/and map? (se/subex sub-form))
+    {:bnf :map}))
+
+(defn mpair [k-form v-form]
+  (with-meta (se/subex (cat k-form v-form))
+    {:bnf :map-pair}))
 
 (defn rule [rule form]
   (vary-meta form assoc :rule rule))
@@ -119,37 +126,61 @@
          (when suffix
            (hl suffix)))))
 
-(defn clj-format [seqex & [body?]]
-  (if-let [rule-name (when-not body? (-> seqex meta :rule))]
-    (ansi [green] rule-name)
-    (if-let [terminal-name (-> seqex meta :terminal)]
-      (ansi [bold cyan] terminal-name)
-      (let [sub-rules (map clj-format (se/children seqex))]
-        (case (when (instance? clojure.lang.IMeta seqex)
-                (-> seqex meta :bnf))
-          :or (format-rule "(" " | " ")" sub-rules)
-          :and (format-rule "(" " & " ")" sub-rules)
-          :cat (format-rule "" " " "" sub-rules)
-          :opt (format-rule "(" " | " ")" sub-rules "?")
-          :rep+ (format-rule "(" " | " ")" sub-rules "+")
-          :rep* (format-rule "(" " | " ")" sub-rules "*")
-          :vec (str "[" (second sub-rules) "]")
-          :list (str "(" (second sub-rules) ")")
-          nil (if (satisfies? se/LitEx seqex)
-                (pr-str seqex)
-                (if (clj/and (satisfies? se/Tree seqex)
-                             (seq (se/children seqex)))
-                  (items-str "" "" "" sub-rules)
-                  (ansi red (pr-str seqex))))
-          )))))
+(defn count-cat-forms [seqex]
+  (apply + (map #(if (= :cat (-> % meta :bnf))
+                   (count-cat-forms %)
+                   1)
+                (se/children seqex))))
+
+(defn clj-format [seqex & [parent]]
+  (let [seqex (if (= clojure.lang.Delay (type seqex))
+                (deref seqex)
+                seqex)]
+    (if-let [rule-name (when-not (nil? parent)
+                         (-> seqex meta :rule))]
+      (ansi [green] rule-name)
+      (if-let [terminal-name (-> seqex meta :terminal)]
+        (ansi [bold cyan] terminal-name)
+        (let [bnf (-> seqex meta :bnf)
+              sub-rules (map #(clj-format % bnf) (se/children seqex))]
+          (case (when (instance? clojure.lang.IMeta seqex)
+                  bnf)
+            :or   (format-rule "(" " | " ")" sub-rules)
+            :and  (format-rule "(" " & " ")" sub-rules)
+            :cat  (if (clj/or (= :cat parent)
+                              (= nil parent)
+                              (= 1 (count-cat-forms seqex)))
+                    (format-rule "" " " "" sub-rules)
+                    (format-rule "(" " " ")" sub-rules))
+            :opt  (format-rule "(" " | " ")" sub-rules "?")
+            :rep+ (format-rule "(" " | " ")" sub-rules "+")
+            :rep* (format-rule "(" " | " ")" sub-rules "*")
+            :vec  (str "[" (second sub-rules) "]")
+            :list (str "(" (second sub-rules) ")")
+            :map  (str "{" (second sub-rules) "}")
+            :map-pair (format-rule "(" " " ")" sub-rules)
+            nil   (if (satisfies? se/LitEx seqex)
+                    (pr-str seqex)
+                    (if (clj/and (satisfies? se/Tree seqex)
+                                 (seq (se/children seqex)))
+                      (items-str "" "" "" sub-rules)
+                      (ansi red (pr-str seqex))))
+            ))))))
 
 (defn find-rules
   "Find all rule nodes in seqex tree and return them breadth first."
-  [seqex]
-  (let [sub-rules (mapcat find-rules (se/children seqex))]
-    (if (-> seqex meta :rule)
-      (cons seqex sub-rules)
-      sub-rules)))
+  [seqex parents]
+  (let [new-seqex (if (= clojure.lang.Delay (type seqex))
+                    (deref seqex)
+                    seqex)
+        name (rule-name new-seqex)
+        find-child-rules (fn [parents]
+                           (mapcat #(find-rules % parents)
+                                   (se/children new-seqex)))]
+    (if (nil? name)
+      (find-child-rules parents)
+      (when-not (contains? parents name)
+        (cons seqex (find-child-rules (conj parents name)))))))
 
 (defn trim-rules
   "Remove duplicate rules (keeping last-most rules)."
@@ -167,16 +198,17 @@
   "Create a single string containing all rules."
   [seqexes format]
   (let [format-fn (get {:clj clj-format} format clj-format)
-        len-max (apply max (map #(-> % rule-name str count) (rest seqexes)))]
+        len-max (if (= 0 (count seqexes))
+                  0
+                  (apply max (map #(-> % rule-name str count) seqexes)))]
     (str/join "\n"
-              (cons (format-fn (first seqexes) true)
-                    (for [seqex (rest seqexes)]
-                      (let [name (str (rule-name seqex))
-                            pad (str/join "" (repeat (- len-max (count name)) " "))]
-                        (str "    " pad
-                             (ansi green name)
-                             (ansi [bold blue] " ::= ")
-                             (format-fn seqex true)      )))))))
+              (for [seqex seqexes]
+                (let [name (str (rule-name seqex))
+                      pad (str/join "" (repeat (- len-max (count name)) " "))]
+                  (str "  " pad
+                       (ansi green name)
+                       (ansi [bold blue] " = ")
+                       (format-fn seqex)))))))
 
 (defn syn*
   "Print the syntax of seqex. Generally assumes that seqex is
@@ -187,7 +219,7 @@
     (->when (clj/and (not= :syn (-> seqex meta :bnf))
                      (clj/not (rule-name seqex)))
                 (vary-meta assoc :rule 'syntax))
-    find-rules
+    (find-rules #{})
     trim-rules
     (format-rules :clj)
     println))
@@ -205,7 +237,7 @@
          ~@opts))
 
 (def def-seqex (cat (se/cap symbol)
-                    (se/cap (opt (rule 'doc string)))
+                    (se/cap (opt (rule 'docstring string)))
                     (se/cap form)))
 
 (defmacro defsyntax
@@ -227,12 +259,31 @@
 (defsyntax defrule
   (se/recap def-seqex
             (fn [[rule-name] doc [body]]
-              `(let [body# (rule '~rule-name ~body)]
-                 (def ~rule-name ~@doc body#)))))
+              `(def ~rule-name ~@doc (rule '~rule-name ~body)))))
 
-(defrule bindings (vform (rep* (cat form form))))
-(defrule body (rep* form))
-(defsyntax let2 (cat bindings body))
+;; let (and destructuring) syntax
+(declare binding-form)
+
+(defrule binding-vec
+  (vform (cat (rep* (delay binding-form))
+              (opt (cat :as symbol)))))
+
+(defrule binding-map
+  (mform (rep* (mpair symbol form)
+               (mpair :as symbol)
+               (rule 'keys
+                     (mpair (or :keys :strs :syms) (vform (rep* symbol))))
+               (rule 'defaults
+                     (mpair :or (mform (rep* (mpair symbol form))))))))
+
+(defrule binding-form
+  (or symbol binding-vec binding-map))
+
+(defrule binding-pair
+  (cat binding-form form))
+
+(defsyntax let2
+  (cat (vform (rep* binding-pair)) (rep* form)))
 
 ;; make some test expressions
 (def b (rule 'b-syntax (cat 1 (rule 'bfoo (opt 2)) 3)))
