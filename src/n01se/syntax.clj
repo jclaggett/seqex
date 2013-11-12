@@ -140,17 +140,19 @@
       (if-let [terminal-name (-> seqex meta :terminal)]
         (ansi [bold cyan] terminal-name)
         (let [bnf (-> seqex meta :bnf)
-              sub-rules (map #(clj-format % (if (nil? bnf) :noop bnf))
+              sub-rules (map #(clj-format % (if (= n01se.seqex.SubEx (type seqex))
+                                              nil
+                                              (if (nil? bnf)
+                                                :noop
+                                                bnf)))
                              (se/children seqex))
               one-child? (= 1 (count sub-rules))
               one-cat-child? (= 1 (count-cat-forms seqex))
               top-level? (nil? parent)
               cat-parent? (= :cat parent)]
           (case (when (instance? clojure.lang.IMeta seqex) bnf)
-            :or (do (pprint {'top-level? top-level?
-                             'one-child? one-child?})
-                    (format-rule sub-rules " | " nil
-                                 (clj/or top-level? one-child?)))
+            :or (format-rule sub-rules " | " nil
+                             (clj/or top-level? one-child?))
             :and (format-rule sub-rules " & " nil
                               (clj/or top-level? one-child?))
             :cat (format-rule sub-rules  " "  nil
@@ -276,7 +278,7 @@
                  (opt (cat :as symbol)))))
 
 (defrule binding-map
-  (map-form (rep* (map-pair symbol form)
+  (map-form (rep* (map-pair binding-form form)
                   (map-pair :as symbol)
                   (rule 'keys
                         (map-pair (or :keys :strs :syms)

@@ -705,28 +705,31 @@
 
 (def not-seqable (Object.))
 
+(defrecord SubEx [seqex]
+  SeqEx
+  (begin- [_] [not-seqable Failing])
+  (continue- [_ _ token]
+    (if (clj/or (nil? token)
+                (string? token)
+                (coll? token))
+      (exec seqex (seq token))
+      [not-seqable Failed]))
+  (model- [_ result]
+    (when-not (nil? result)
+      (list (model- seqex result))))
+  (error- [_ state]
+    (if (= not-seqable state)
+      ["seqable (nil, string or collection)."]
+      [subex-error-msg (error seqex state)]))
+
+  Object (toString [_] (pr-str 'subex seqex))
+  Tree (children- [_] [seqex]))
+
 (defn subex
   "Matches a single sequential token, matching seqex on its contents.
   This is a sort of 'descend' operation for matching nested data."
   [seqex]
-  (reify SeqEx
-    (begin- [_] [not-seqable Failing])
-    (continue- [_ _ token]
-      (if (clj/or (nil? token)
-                  (string? token)
-                  (coll? token))
-        (exec seqex (seq token))
-        [not-seqable Failed]))
-    (model- [_ result]
-      (when-not (nil? result)
-        (list (model- seqex result))))
-    (error- [_ state]
-      (if (= not-seqable state)
-        ["seqable (nil, string or collection)."]
-        [subex-error-msg (error seqex state)]))
-    Object
-    (toString [_] (pr-str 'subex seqex))
-    Tree (children- [_] [seqex])))
+  (->SubEx seqex))
 
 ;; Rename all the se-* expressions that overwrite built in names. Do this near
 ;; the bottom of the file so as to reduce the chance of accidentally using
