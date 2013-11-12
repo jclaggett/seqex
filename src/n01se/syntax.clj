@@ -8,10 +8,16 @@
 
 ;; Define the 'API' for defining clojure syntax.
 
-;; terminals
-(def form (vary-meta se/n1 assoc :terminal 'form))
-(def symbol (vary-meta symbol? assoc :terminal 'symbol))
-(def string (vary-meta string? assoc :terminal 'string))
+(defn terminal [label form]
+  (vary-meta form assoc :terminal label))
+
+(defn rule [label form]
+  (vary-meta form assoc :rule label))
+
+;; default terminals
+(def form (terminal 'form se/n1))
+(def symbol (terminal 'symbol symbol?))
+(def string (terminal 'string string?))
 
 ;; groupings
 (defn cat [& forms]
@@ -57,9 +63,6 @@
 (defn map-pair [k-form v-form]
   (with-meta (se/subex (se/ord k-form v-form))
     {:bnf :map-pair}))
-
-(defn rule [rule form]
-  (vary-meta form assoc :rule rule))
 
 
 ;; Grammar generation related code
@@ -113,7 +116,10 @@
                  [after])))
 
 (defn rule-name [seqex]
-  (-> seqex meta :rule))
+  (-> seqex
+    (->when (= clojure.lang.Delay (type seqex))
+            deref)
+    meta :rule))
 
 (defn format-rule [items between suffix unwrap?]
   (let [hl (partial ansi [bold blue])]
@@ -141,14 +147,14 @@
         (ansi [bold cyan] terminal-name)
         (let [bnf (-> seqex meta :bnf)
               sub-rules (map #(clj-format % (if (= n01se.seqex.SubEx (type seqex))
-                                              nil
+                                              :subex
                                               (if (nil? bnf)
-                                                :noop
+                                                parent
                                                 bnf)))
                              (se/children seqex))
               one-child? (= 1 (count sub-rules))
               one-cat-child? (= 1 (count-cat-forms seqex))
-              top-level? (nil? parent)
+              top-level? (clj/or (nil? parent) (= :subex parent))
               cat-parent? (= :cat parent)]
           (case (when (instance? clojure.lang.IMeta seqex) bnf)
             :or (format-rule sub-rules " | " nil
@@ -246,7 +252,7 @@
          ~@opts))
 
 (def def-seqex (cat (se/cap symbol)
-                    (se/cap (opt (rule 'docstring string)))
+                    (se/cap (opt (terminal 'doc-string string?)))
                     (se/cap form)))
 
 (defmacro defsyntax
@@ -267,14 +273,24 @@
 
 (defsyntax defrule
   (se/recap def-seqex
-            (fn [[rule-name] doc [body]]
-              `(def ~rule-name ~@doc (rule '~rule-name ~body)))))
+            (fn [[label] doc [body]]
+              `(def ~label ~@doc (rule '~label ~body)))))
+
+(defsyntax defterminal
+  (se/recap def-seqex
+            (fn [[label] doc [body]]
+              `(def ~label ~@doc (terminal '~label ~body)))))
 
 ;; let (and destructuring) syntax
+(defterminal prepost-map map?)
+(defterminal attr-map map?)
+(defterminal doc-string string?)
+
 (declare binding-form)
 
 (defrule binding-vec
   (vec-form (cat (rep* (delay binding-form))
+                 (opt (cat '& symbol))
                  (opt (cat :as symbol)))))
 
 (defrule binding-map
@@ -297,14 +313,9 @@
 (defsyntax let2
   (cat (vec-form (rep* binding-pair)) (rep* form)))
 
-;; make some test expressions
-(def b (rule 'b-syntax (cat 1 (rule 'bfoo (opt 2)) 3)))
-(def a (rep* (rule 'top
-                   (cat (rule 'sub1
-                              (cat (or form
-                                        form)
-                                   b))
-                        (or (rule 'sub2
-                                  (opt 3
-                                       b))
-                            b)))))
+(defrule sig-body
+  (cat binding-vec (opt prepost-map) (rep* form)))
+
+(defsyntax defn2
+  (cat (opt doc-string) (opt attr-map) (or sig-body
+                                           (rep+ (list-form sig-body)))))
