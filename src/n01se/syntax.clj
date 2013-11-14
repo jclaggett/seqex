@@ -225,7 +225,7 @@
                        (ansi [bold blue] " => ")
                        (format-fn seqex)))))))
 
-(defn syn*
+(defn syndoc*
   "Print the syntax of seqex. Generally assumes that seqex is
   decorated with syntax metadata."
   [seqex & {:keys [format color]
@@ -240,16 +240,16 @@
     println))
 
 
-(defmacro syn
+(defmacro syndoc
   [x & opts]
-  `(syn* ~(if (symbol? x)
-            (if-let [v (resolve x)]
-              (if-let [seqex (-> v meta :seqex)]
-                `(-> (var ~x) meta :seqex)
-                x)
-              x)
-            x)
-         ~@opts))
+  `(syndoc* ~(if (symbol? x)
+               (if-let [v (resolve x)]
+                 (if-let [seqex (-> v meta :seqex)]
+                   `(-> (var ~x) meta :seqex)
+                   x)
+                 x)
+               x)
+            ~@opts))
 
 (def def-seqex (cat (se/cap symbol)
                     (se/cap (opt (terminal 'doc-string string?)))
