@@ -1,7 +1,7 @@
 (ns n01se.syntax
   (:require [clojure.string :as str]
             [clojure.pprint :refer [pprint]]
-            [n01se.seqex :as se]
+            [n01se.seqex :as se :refer [cap recap]]
             [n01se.seqex.util :refer [->when ->when-not]])
   (:refer-clojure :exclude [symbol]))
 (alias 'clj 'clojure.core)
@@ -309,6 +309,12 @@
 
 (defrule binding-pair
   (cat binding-form form))
+
+(defrule binding-pair2
+  (recap (cat (cap binding-form) (cap form))
+         (fn [[bound] [value]]
+           {:bound bound
+            :value value})))
 
 (defsyntax let2
   (cat (vec-form (rep* binding-pair)) (rep* form)))

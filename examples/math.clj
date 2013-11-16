@@ -23,12 +23,12 @@
                   (se/opt (se/ord (se/alt \e \E)
                                   (se/opt \+ \-)
                                   digits)))
-          #(Double/parseDouble (apply str %))))
+          #(Double/parseDouble (apply str %&))))
 
 (defn op
   "Operator. Captured as function."
   ([literal] (op literal (resolve (symbol (str literal)))))
-  ([literal, func] (se/cap-one literal #(do %1 func))))
+  ([literal, func] (se/cap literal (constantly func))))
 
 (defn bin-expr
   "Left to right associative, infix binary expressions. Captured as
@@ -36,13 +36,13 @@
   [expr & ops]
   (se/recap (se/ord expr ws
                 (se/qty* (se/recap (se/ord (apply se/alt ops) ws expr)
-                             ;; wrap the op and expr in a list
-                             list)))
+                                   ;; wrap the op and expr in a list
+                                   list)))
       ;; Take leading expr and following '(op expr) pairs and nest them.
-      (fn [models]
-        (list (reduce #(cons (first %2)
-                             (cons %1 (rest %2)))
-                      models)))))
+      (fn [& models]
+        (reduce #(cons (first %2)
+                       (cons %1 (rest %2)))
+                models))))
 
 (declare add-expr) ;; allows atom-expr to refer to add-expr
 (def atom-expr (se/alt number (se/ord \( ws (delay add-expr) ws \))))
@@ -52,11 +52,12 @@
 (def math-expr add-expr)
 
 (def big-example "2^(.2 + +2e+0) * (-1.E-1/(0--1) - 12.3)")
+(def big-answer (* (Math/pow 2 (+ 0.2 2e+0)) (- (/ -1.0E-1 (- 0 -1)) 12.3)))
 
 (assert (= true
            (se/valid? math-expr big-example)))
 
-(assert (= (* (Math/pow 2 (+ 0.2 2e+0)) (- (/ -1.0E-1 (- 0 -1)) 12.3))
-           (-> (se/models math-expr big-example)
-               first eval)))
+(assert (= big-answer
+           (-> (se/parse math-expr big-example)
+             first eval)))
 

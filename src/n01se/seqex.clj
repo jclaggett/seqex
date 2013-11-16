@@ -623,35 +623,19 @@
     Tree
     (children- [_] [seqex])))
 
-(defn cap-many
-  "Capture all non-invalid tokens examined by seqex. Return a vector of tokens
-  unless finalize is specified and instead pass the token vector to finalize and
-  use its return value instead. The resulting 'model' is prepended to any
-  sub-models returned by seqex."
-  [seqex & [finalize]]
-  (cap-tokens seqex :end (clj/or finalize identity)))
-
-(defn cap-one
-  "Capture a single non-invalid token examined by seqex. Return just that token
-  or, if specified, pass it to finalize and use its return value instead. If
-  multiple tokens are matched by seqex, the last one is used."
-  [seqex & [finalize]]
-  (cap-tokens seqex
-             :begin (constantly nil)
-             :continue #(do %2)
-             :end (clj/or finalize identity)))
 
 (defn cap
-  "Capture all non-invalid tokens examined by seqex. Return a vector of tokens
-  unless finalize is specified in which case apply finalize to the token vector
-  and treat its return value as a single result."
+  "Capture all tokens examined by seqex (assuming seqex is valid) and return a
+  sequence of captured tokens. If finalize is given, call it with the sequence
+  of captured tokens as it's single argument and use its return value as the
+  result."
   [seqex & [finalize]]
   (cap-tokens seqex
-              :end #(apply (clj/or finalize vector) %)))
+              :end (clj/or finalize identity)))
 
-(defn recap-many
-  "Apply finalize to all returned models by seqex and treat its result as a
-  sequence of new models."
+(defn recap-map
+  "Call finalize with a sequence of models returned from seqex. Finalize is
+  expected to return a sequence of new models."
   [seqex finalize]
   (reify SeqEx
     (begin- [_] (begin- seqex))
@@ -662,8 +646,8 @@
     (children- [_] [seqex])))
 
 (defn recap
-  "Apply finalize to all returned models by seqex and treat its result as a
-  sequence of new models."
+  "Apply finalize to a sequence of models returned by seqex. The return value of
+  finalize is treated as a single new model."
   [seqex finalize]
   (reify SeqEx
     (begin- [_] (begin- seqex))
