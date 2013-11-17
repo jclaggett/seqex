@@ -437,6 +437,16 @@
 ;    is: inferior state
 ;    iv: inferior verdict
 
+(defrecord SerialPath [ssv sv ss ise isv is iv parent])
+(defn path [ssv ise isv parent]
+  (->SerialPath
+      ssv
+      (first ssv) (second ssv)
+      ise
+      isv
+      (first isv) (second isv)
+      parent))
+
 (defn pr-paths "Useful debugging tool."
   [paths msg]
   (println msg)
