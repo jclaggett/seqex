@@ -440,14 +440,8 @@
 (defn pr-paths "Useful debugging tool."
   [paths msg]
   (println msg)
-  (pprint paths)
-
-  #_(doseq [[[ss sv] ise [is iv]] paths]
-    (pprint {:ss ss
-             :sv sv
-             :ise ise
-             :is is
-             :iv iv}))
+  (doseq [[[ss sv] ise [is iv] parent] paths]
+    (prn "path:" [iv ise]))
   paths)
 
 (defn- root-path
@@ -483,17 +477,19 @@
                          (conj parent-path))))
               (reduce inspect new-paths)))
 
-          (novel-path? [new-paths [[ss _] ise [is _] :as path]]
-            (nil? (some (fn [[[ss2 _] ise2 [is2 _]]]
-                          (clj/and (= ss ss2) (= ise ise2) (= is is2)))
-                        new-paths)))
+          (dup-path? [new-paths [ssv ise isv]]
+            (some (fn [[ssv2 ise2 isv2]]
+                    (= [ssv ise isv] [ssv2 ise2 isv2]))
+                  new-paths))
 
-          (inspect [new-paths [[ss sv] ise [is iv] :as path]]
+          (inspect [new-paths [[ss sv] ise [is iv] :as old-path]]
             (-> new-paths
-              (->when (novel-path? new-paths path)
-                  (conj path)
-                  (->when (clj/and (continue? sv) (matching? iv))
-                      (branch path)))))]
+              (->when-not (dup-path? new-paths old-path)
+                  (conj old-path)
+                  (->when (clj/and
+                               (continue? sv)
+                               (matching? iv))
+                      (branch old-path)))))]
     (reduce inspect [] old-paths)))
 
 (defn- judge-paths
@@ -516,12 +512,18 @@
   SeqEx
   (begin- [_]
     (-> (root-path superior-se)
-      (branch-paths superior-se inferior-ses)
-      judge-paths))
+        #_(pr-paths "root path")
+        (branch-paths superior-se inferior-ses)
+        #_(pr-paths "After branching")
+        judge-paths
+        ))
   (continue- [_ paths token]
-    (-> (age-paths paths token)
-      (branch-paths superior-se inferior-ses)
-      judge-paths))
+    (-> paths
+        (age-paths token)
+        #_(pr-paths (str "After aging (" token ")"))
+        (branch-paths superior-se inferior-ses)
+        #_(pr-paths "After branching")
+        judge-paths))
   (model- [_ paths]
     (some (fn [[[ss sv] ise [is iv] :as path]]
             (when (clj/and (matching? sv) (matching? iv))
@@ -665,8 +667,8 @@
          [token & more :as ts] tokens]
     (if (empty? ts)
       (if (failing? verdict)
-        [(error-msg (str "Missing value") state) verdict]
-        pair)
+        [(error-msg (str "Missing value") state) Failed]
+        [state Passed])
       (if (continue? verdict)
         (let [[state verdict :as pair] (continue- seqex state token)]
           (if (failed? verdict)
@@ -698,9 +700,8 @@
                 (coll? token))
       (exec seqex (seq token))
       [not-seqable Failed]))
-  (model- [_ result]
-    (when-not (nil? result)
-      (list (model- seqex result))))
+  (model- [_ state]
+    (model- seqex state))
   (error- [_ state]
     (if (= not-seqable state)
       ["seqable (nil, string or collection)."]

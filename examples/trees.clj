@@ -14,18 +14,18 @@
 (def to-symbols
   "Convert all keywords to symbols in tree."
   (se/qty* ;; zero or more
-    (se/cap-one keyword? (comp symbol name)) ;; capture and convert keywords
-    (se/subex (delay to-symbols)))) ;; descend through tree
+    (se/cap keyword? #(-> % first name symbol)) ;; capture and convert keywords
+    (se/subex (se/recap (delay to-symbols) list)))) ;; descend through tree
 
 (def flatten-lists
   "Flatten any lists in tree."
   (let [descend (se/subex (delay flatten-lists))] ;; descend through tree
     (se/qty* ;; zero or more
-      (se/cap-one keyword?) ;; capture keywords
-      (se/and list? (se/recap descend first)) ;; flatten lists
-      descend))) ;; descend into non-lists too
+      (se/cap keyword? first) ;; capture keywords
+      (se/and list? descend) ;; flatten lists
+      (se/recap descend list)))) ;; descend into non-lists too
 
 (assert (= '(a (b c) (d (e) f g) h)
-           (se/model to-symbols sample-tree)))
+           (se/parse to-symbols sample-tree)))
 (assert (= '(:a :b :c (:d :e :f :g) :h)
-           (se/model flatten-lists sample-tree)))
+           (se/parse flatten-lists sample-tree)))
