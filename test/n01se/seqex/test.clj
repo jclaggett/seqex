@@ -113,7 +113,7 @@
          = ""
          = "b"
          ! "bb")
-  (check (se/qty* (se/ord \a (se/opt \b)))
+  (check (se/qty* (se/cat \a (se/opt \b)))
          = ""
          = "a"
          ! "b"
@@ -127,16 +127,16 @@
   "Arbitrary amount of whitespace."
   (se/qty* \space \tab))
 
-(defn ord-ws
+(defn cat-ws
   "Ordered seqexes interposed with whitespace."
-  [& seqexes] (apply se/ord (interpose ws seqexes)))
+  [& seqexes] (apply se/cat (interpose ws seqexes)))
 
 (defn first-rest*
   "Ordered seqexes interposed with whitespace where the first seqex is required
   and all following seqexes are repeated zero or more times."
   [& seqexes]
    (let [[leader & following] (interpose ws seqexes)]
-     (se/ord leader (se/qty* (apply se/ord following)))))
+     (se/cat leader (se/qty* (apply se/cat following)))))
 
 (def digits
   "one or more digits."
@@ -145,18 +145,18 @@
 (def number
   "real number. (captured)"
   (se/cap
-    (se/ord (se/opt \+ \-)
+    (se/cat (se/opt \+ \-)
             (se/alt digits
-                    (se/ord \. digits)
-                    (se/ord digits \.)
-                    (se/ord digits \. digits))
-            (se/opt (se/ord (se/alt \e \E)
+                    (se/cat \. digits)
+                    (se/cat digits \.)
+                    (se/cat digits \. digits))
+            (se/opt (se/cat (se/alt \e \E)
                             (se/opt \+ \-)
                             digits)))
     #(Double/parseDouble (apply str %))))
 
 (declare add-expr)
-(def atom-expr (se/alt number (ord-ws \( (delay add-expr) \) )))
+(def atom-expr (se/alt number (cat-ws \( (delay add-expr) \) )))
 (def pow-expr (first-rest* atom-expr \^ atom-expr))
 (def mul-expr (first-rest* pow-expr (se/alt \* \/) pow-expr))
 (def add-expr (first-rest* mul-expr (se/alt \+ \-) mul-expr))
@@ -170,7 +170,7 @@
          = " "
          = "    "
          ! "    x ")
-  (check (ord-ws \a \b \c)
+  (check (cat-ws \a \b \c)
          = "abc"
          = "a bc"
          = "ab c"

@@ -15,15 +15,15 @@
 
 (def number
   "Real number. Captured as a double."
-  (se/cap (se/ord (se/opt \+ \-)
+  (se/cap (se/cat (se/opt \+ \-)
                   (se/alt digits
-                          (se/ord \. digits)
-                          (se/ord digits \.)
-                          (se/ord digits \. digits))
-                  (se/opt (se/ord (se/alt \e \E)
+                          (se/cat \. digits)
+                          (se/cat digits \.)
+                          (se/cat digits \. digits))
+                  (se/opt (se/cat (se/alt \e \E)
                                   (se/opt \+ \-)
                                   digits)))
-          #(Double/parseDouble (apply str %&))))
+          #(Double/parseDouble (apply str %))))
 
 (defn op
   "Operator. Captured as function."
@@ -34,8 +34,8 @@
   "Left to right associative, infix binary expressions. Captured as
   S-expressions."
   [expr & ops]
-  (se/recap (se/ord expr ws
-                (se/qty* (se/recap (se/ord (apply se/alt ops) ws expr)
+  (se/recap (se/cat expr ws
+                (se/qty* (se/recap (se/cat (apply se/alt ops) ws expr)
                                    ;; wrap the op and expr in a list
                                    list)))
       ;; Take leading expr and following '(op expr) pairs and nest them.
@@ -45,7 +45,7 @@
                 models))))
 
 (declare add-expr) ;; allows atom-expr to refer to add-expr
-(def atom-expr (se/alt number (se/ord \( ws (delay add-expr) ws \))))
+(def atom-expr (se/alt number (se/cat \( ws (delay add-expr) ws \))))
 (def pow-expr (bin-expr atom-expr (op \^ #(Math/pow %1 %2))))
 (def mul-expr (bin-expr pow-expr (op \*) (op \/) (op \%)))
 (def add-expr (bin-expr mul-expr (op \+) (op \-)))

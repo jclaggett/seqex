@@ -575,8 +575,8 @@
 
 ;; New API
 
-(defn ord "All seqexes in order." [& seqexes]
-  (mk-serial (se-range (count seqexes)) seqexes 'ord))
+(defn cat "Concatenate seqexes." [& seqexes]
+  (mk-serial (se-range (count seqexes)) seqexes 'cat))
 (defn alt "Alternate between seqexes (pick any one)." [& seqexes]
   (mk-serial n1 seqexes 'alt))
 (defn opt "Optionally alternate between seqexes." [& seqexes]
