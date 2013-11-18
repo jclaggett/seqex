@@ -25,12 +25,12 @@
     {:bnf :cat}))
 
 (defn alt [& forms]
-  (with-meta (apply se/or forms)
-    {:bnf :or}))
+  (with-meta (apply se/alt forms)
+    {:bnf :alt}))
 
 (defn all [& forms]
-  (with-meta (apply se/and forms)
-    {:bnf :and}))
+  (with-meta (apply se/all forms)
+    {:bnf :all}))
 
 (defn opt [& forms]
   (with-meta (apply se/opt forms)
@@ -157,9 +157,9 @@
               top-level? (or (nil? parent) (= :subex parent))
               cat-parent? (= :cat parent)]
           (case (when (instance? clojure.lang.IMeta seqex) bnf)
-            :or (format-rule sub-rules " | " nil
+            :alt (format-rule sub-rules " | " nil
                              (or top-level? one-child?))
-            :and (format-rule sub-rules " & " nil
+            :all (format-rule sub-rules " & " nil
                               (or top-level? one-child?))
             :cat (format-rule sub-rules  " "  nil
                               (or top-level? one-cat-child? cat-parent?))
