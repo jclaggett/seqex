@@ -55,7 +55,7 @@
          ! "abcde"))
 
 (deftest fns
-  (check (se/qty+ (fn vowel? [c] ((set "aeiou") c)))
+  (check (se/rep+ (fn vowel? [c] ((set "aeiou") c)))
          ! ""
          = "o"
          = "aa"
@@ -63,7 +63,7 @@
          = "uoiea"
          ! "z"
          ! "abe")
-  (check (se/qty+ odd?)
+  (check (se/rep+ odd?)
          ! []
          = [1 3 5]
          ! [1 3 4]
@@ -93,16 +93,16 @@
          ! [0 1 1 0 2 3]))
 
 (deftest logic
-  (check (se/not (se/qty+ odd?))
+  (check (se/not (se/rep+ odd?))
          = [2 4 6]
          ! [1]
          ! [])
-  (check (se/or (se/qty* odd?) (se/qty* pos?))
+  (check (se/or (se/rep* odd?) (se/rep* pos?))
          = [1 2 3]
          ! [-2]
          = [-1]
          ! [0])
-  (check (se/and (se/qty* odd?) (se/qty* pos?))
+  (check (se/and (se/rep* odd?) (se/rep* pos?))
          ! [0]
          ! [-1 -3 -5]
          = [1 3 5]))
@@ -113,7 +113,7 @@
          = ""
          = "b"
          ! "bb")
-  (check (se/qty* (se/cat \a (se/opt \b)))
+  (check (se/rep* (se/cat \a (se/opt \b)))
          = ""
          = "a"
          ! "b"
@@ -125,7 +125,7 @@
 ;; math expressions demo
 (def ws
   "Arbitrary amount of whitespace."
-  (se/qty* \space \tab))
+  (se/rep* \space \tab))
 
 (defn cat-ws
   "Ordered seqexes interposed with whitespace."
@@ -136,11 +136,11 @@
   and all following seqexes are repeated zero or more times."
   [& seqexes]
    (let [[leader & following] (interpose ws seqexes)]
-     (se/cat leader (se/qty* (apply se/cat following)))))
+     (se/cat leader (se/rep* (apply se/cat following)))))
 
 (def digits
   "one or more digits."
-  (apply se/qty+ "0123456789"))
+  (apply se/rep+ "0123456789"))
 
 (def number
   "real number. (captured)"

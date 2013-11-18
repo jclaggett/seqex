@@ -37,15 +37,15 @@
     {:bnf :opt}))
 
 (defn rep [x & forms]
-  (with-meta (apply se/qty x forms)
+  (with-meta (apply se/rep x forms)
     {:bnf :rep}))
 
 (defn rep+ [& forms]
-  (with-meta (apply se/qty+ forms)
+  (with-meta (apply se/rep+ forms)
     {:bnf :rep+}))
 
 (defn rep* [& forms]
-  (with-meta (apply se/qty* forms)
+  (with-meta (apply se/rep* forms)
     {:bnf :rep*}))
 
 (defn vec-form [sub-form]

@@ -7,11 +7,11 @@
 
 (def ws
   "Arbitrary amount of whitespace."
-  (se/qty* \space \tab))
+  (se/rep* \space \tab))
 
 (def digits
   "One or more digits."
-  (apply se/qty+ "0123456789"))
+  (apply se/rep+ "0123456789"))
 
 (def number
   "Real number. Captured as a double."
@@ -35,7 +35,7 @@
   S-expressions."
   [expr & ops]
   (se/recap (se/cat expr ws
-                (se/qty* (se/recap (se/cat (apply se/alt ops) ws expr)
+                (se/rep* (se/recap (se/cat (apply se/alt ops) ws expr)
                                    ;; wrap the op and expr in a list
                                    list)))
       ;; Take leading expr and following '(op expr) pairs and nest them.

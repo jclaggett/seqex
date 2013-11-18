@@ -581,17 +581,17 @@
   (mk-serial n1 seqexes 'alt))
 (defn opt "Optionally alternate between seqexes." [& seqexes]
   (mk-serial n? seqexes 'opt))
-(defn qty+ "One or more seqexes (in any order)." [& seqexes]
-  (mk-serial n+ seqexes 'qty+))
-(defn qty* "Zero or more seqexes (in any order)." [& seqexes]
-  (mk-serial n* seqexes 'qty*))
-(defn qty
+(defn rep+ "One or more seqexes (in any order)." [& seqexes]
+  (mk-serial n+ seqexes 'rep+))
+(defn rep* "Zero or more seqexes (in any order)." [& seqexes]
+  (mk-serial n* seqexes 'rep*))
+(defn rep
   "Repeat seqexes x times. If x is a single number, then repeat exactly that
   many times. If x is a sequence of two numbers then repeat between the first
   and second number of times. Finally, if x is a sequence of 1 number, repeat
   between 0 and that number of times."
   [x & seqexes]
-  (mk-serial (nx x) seqexes 'qty))
+  (mk-serial (nx x) seqexes 'rep))
 
 (defn all "All seqexes in any order."
   [& seqexes]
@@ -736,19 +736,19 @@
 
 
 (comment "isomorphs: things that do the same thing."
-         (qty+ n1) == n+
-         (qty* n1) == n*
-         (qty x n1) == (nx x)
+         (rep+ n1) == n+
+         (rep* n1) == n*
+         (rep x n1) == (nx x)
 
          (alt x y z) == (or x y z)
 
-         (qty* (qty* x y z)) == (qty* x y z)
-         (qty* (qty+ x y z)) == (qty* x y z)
-         (qty* (opt x y z)) == (qty* x y z)
-         (qty* (alt x y z)) == (qty* x y z)
-         (qty* (or x y z)) == (qty* x y z)
+         (rep* (rep* x y z)) == (rep* x y z)
+         (rep* (rep+ x y z)) == (rep* x y z)
+         (rep* (opt x y z)) == (rep* x y z)
+         (rep* (alt x y z)) == (rep* x y z)
+         (rep* (or x y z)) == (rep* x y z)
 
-         (qty+ (qty+ x y z)) == (qty+ x y z)
-         (qty+ (qty* x y z)) == (qty* x y z)
-         (qty+ (opt x y z)) == (qty* x y z)
+         (rep+ (rep+ x y z)) == (rep+ x y z)
+         (rep+ (rep* x y z)) == (rep* x y z)
+         (rep+ (opt x y z)) == (rep* x y z)
          )
