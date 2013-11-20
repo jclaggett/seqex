@@ -21,7 +21,7 @@
 
 ;; groupings
 (defn cat [& forms]
-  (with-meta (apply se/ord forms)
+  (with-meta (apply se/cat forms)
     {:bnf :cat}))
 
 (defn alt [& forms]
@@ -61,7 +61,7 @@
     {:bnf :map}))
 
 (defn map-pair [k-form v-form]
-  (with-meta (se/subex (se/ord k-form v-form))
+  (with-meta (se/subex (cat k-form v-form))
     {:bnf :map-pair}))
 
 
