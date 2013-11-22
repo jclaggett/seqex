@@ -317,11 +317,16 @@
             :value value})))
 
 (defsyntax let2
-  (cat (vec-form (rep* binding-pair)) (rep* form)))
+  (se/cap (cat (vec-form (rep* binding-pair)) (rep* form))
+      (fn [forms] `(let ~@forms))))
 
 (defrule sig-body
   (cat binding-vec (opt prepost-map) (rep* form)))
 
 (defsyntax defn2
-  (cat (opt doc-string) (opt attr-map) (alt sig-body
-                                            (rep+ (list-form sig-body)))))
+  (se/cap
+      (cat (opt doc-string)
+           (opt attr-map)
+           (alt sig-body
+                (rep+ (list-form sig-body))))
+      (fn [forms] `(defn ~@forms))))

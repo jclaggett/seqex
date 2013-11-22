@@ -182,12 +182,14 @@
              Failed)])
   (model- [_ _] nil)
   (error- [pred _]
-    [(get {symbol? "symbol"
-           keyword? "keyword"
-           vector? "vector"
-           map? "map"}
-          pred
-          (pr-str pred))])
+    [(if-let [label (:terminal (meta pred))]
+       (str label)
+       (get {symbol? "symbol"
+                keyword? "keyword"
+                vector? "vector"
+                map? "map"}
+               pred
+               (pr-str pred))) ])
 
   ;; Delays are assumed to hold a seqex to be used.
   clojure.lang.Delay
