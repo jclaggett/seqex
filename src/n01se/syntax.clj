@@ -2,9 +2,7 @@
   (:require [clojure.string :as str]
             [clojure.pprint :refer [pprint]]
             [n01se.seqex :as se :refer [cap recap]]
-            [n01se.seqex.util :refer [->when ->when-not]])
-  (:refer-clojure :exclude [symbol]))
-(alias 'clj 'clojure.core)
+            [n01se.seqex.util :refer [->when ->when-not]]))
 
 ;; Define the 'API' for defining clojure syntax.
 
@@ -16,7 +14,7 @@
 
 ;; default terminals
 (def form (terminal 'form se/n1))
-(def symbol (terminal 'symbol symbol?))
+(def sym (terminal 'symbol symbol?))
 (def string (terminal 'string string?))
 
 ;; groupings
@@ -78,15 +76,15 @@
 
 (defn define-ansi-codes [code-prefix name-prefix names]
   (doseq [[i name] (map-indexed list names)]
-    (intern *ns* (clj/symbol (str name-prefix name)) (str code-prefix i))))
+    (intern *ns* (symbol (str name-prefix name)) (str code-prefix i))))
 
 (define-ansi-codes "3" "" color-names)
 (define-ansi-codes "4" "bg-" color-names)
 (define-ansi-codes "" "" style-names)
 
 (defn ansi
-  ([codes] (clj/symbol (str \o33 \[ (if (coll? codes) (str/join \; codes) codes) \m)))
-  ([codes & text] (clj/symbol (str (ansi codes) (apply str text) (ansi reset)))))
+  ([codes] (symbol (str \o33 \[ (if (coll? codes) (str/join \; codes) codes) \m)))
+  ([codes & text] (symbol (str (ansi codes) (apply str text) (ansi reset)))))
 
 (defn parse-forms
   "Executes seqex against forms returning any model(s). Prints a
@@ -158,7 +156,7 @@
               cat-parent? (= :cat parent)]
           (case (when (instance? clojure.lang.IMeta seqex) bnf)
             :alt (format-rule sub-rules " | " nil
-                             (or top-level? one-child?))
+                              (or top-level? one-child?))
             :all (format-rule sub-rules " & " nil
                               (or top-level? one-child?))
             :cat (format-rule sub-rules  " "  nil
@@ -240,18 +238,7 @@
     println))
 
 
-(defmacro syndoc
-  [x & opts]
-  `(syndoc* ~(if (symbol? x)
-               (if-let [v (resolve x)]
-                 (if-let [seqex (-> v meta :seqex)]
-                   `(-> (var ~x) meta :seqex)
-                   x)
-                 x)
-               x)
-            ~@opts))
-
-(def def-seqex (cat (se/cap symbol)
+(def def-seqex (cat (se/cap sym)
                     (se/cap (opt (terminal 'doc-string string?)))
                     (se/cap form)))
 
@@ -270,6 +257,21 @@
                     [& forms#]
                     (parse-forms body# forms#)))))
    forms))
+
+(defsyntax syndoc
+  (recap (cat (cap form first)
+              (cap (rep* (cat :format keyword?)
+                         (cat :color form))))
+         (fn [x opts]
+           `(n01se.syntax/syndoc*
+              ~(if (symbol? x)
+                 (if-let [v (resolve x)]
+                   (if-let [seqex (-> v meta :seqex)]
+                     `(-> (var ~x) meta :seqex)
+                     x)
+                   x)
+                 x)
+              ~@opts))))
 
 (defsyntax defrule
   (se/recap def-seqex
