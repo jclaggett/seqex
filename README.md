@@ -5,6 +5,12 @@ arbitrary sequences of values (not just characters).
 
 ## Status
 
+Works with Clojure 1.5 and up.
+
+Updated to 2.0.1 - Fix se/ord bug with 2.0, started new n01se.syntax.repl
+namespace intended to be used at the repl for nice error messages and syntax
+docs.
+
 Updated to 2.0 - generally simplified the API, added new syntax library.
 Added syntax.clj which applies seqexes to the task of defining macros.
 Added a couple of example files: trees.clj and math.clj.
