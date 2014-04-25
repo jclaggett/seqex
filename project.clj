@@ -1,4 +1,4 @@
-(defproject n01se/seqex "2.0.1"
+(defproject n01se/seqex "2.0.2-SNAPSHOT"
             :description "Sequence Expressions."
             :url "http://github.com/jclaggett/seqex"
             :license {:name "Eclipse Public License - v 1.0"
