@@ -67,8 +67,11 @@
 (defrule sig-body
   (cat binding-vec (opt prepost-map) (rep* form)))
 
+(defterminal var-name symbol?)
+
 (defsyntax defn
-  (cap (cat (opt doc-string)
+  (cap (cat var-name
+            (opt doc-string)
             (opt attr-map)
             (alt sig-body
                  (rep+ (list-form sig-body))))
