@@ -4,7 +4,7 @@
   (:use [n01se.seqex.util :only [transpose ->when ->when-not]]
         [clojure.pprint :only [pprint]]
         [clojure.string :as str :only []])
-  (:refer-clojure :exclude [and not or range]))
+  (:refer-clojure :exclude [and not or range cat]))
 
 (alias 'clj 'clojure.core)
 

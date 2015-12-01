@@ -4,7 +4,7 @@
                                   cat opt alt rep* rep+
                                   vec-form, map-form, map-pair, list-form
                                   rule sym form string]])
-  (:refer-clojure :exclude [let defn]))
+  (:refer-clojure :exclude [let defn cat]))
 (alias 'clj 'clojure.core)
 
 ;; I guess it's okay to define syndoc here. I'd rather put in syntax.clj

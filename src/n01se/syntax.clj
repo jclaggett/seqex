@@ -2,7 +2,8 @@
   (:require [clojure.string :as str]
             [clojure.pprint :refer [pprint]]
             [n01se.seqex :as se :refer [cap recap]]
-            [n01se.seqex.util :refer [->when ->when-not]]))
+            [n01se.seqex.util :refer [->when ->when-not]])
+  (:refer-clojure :exclude [cat]))
 
 ;; Define the 'API' for defining clojure syntax.
 
