@@ -1,26 +1,17 @@
 # panini
 
-Panini is a small Clojure library for defining macro syntax with
-`clojure.spec.alpha`.
+<img src="assets/logo.png" width="270">
 
-It comes out of Chris Houser and Jonathan Claggett's talk
-["Illuminated Macros"](https://www.youtube.com/watch?v=o75g9ZRoLaw).
+Panini is a Clojure library for writing "illuminated macros" in Clojure.
 
-That talk was published on 2014.01.07, and it still feels right to me. Macros
-should not be mysterious. You should be able to see the grammar, get useful
-error messages, and understand what shape of input a macro expects.
+In a Clojure Conj 2013 talk, also named ["Illuminated Macros"](https://www.youtube.com/watch?v=o75g9ZRoLaw), Chris Houser and Jonathan Claggett argued that macros were essentially tiny languages/compilers, and as such, should:
+- expose their grammar tangibly, ideally as BNF notation, allowing users to visually grasp how to use the macro
+- produce clear feedback detailing the nature of a syntax mistake, exactly where it occurred, and examples of what valid input looks like
+- have access to tooling to build these features natively so users don't have to write custom checkers by hand
 
-Jonathan Claggett built `seqex` around that idea. I built my own small pattern
-matching library, Akar, on top of it. `seqex` never really caught on, though,
-and there have been no commits there since 2018. Panini is my attempt to keep
-the same basic idea alive.
+They built the library `seqex` around that idea. I used it to power my pattern matching library `akar`. Unfortunately, `seqex` never really caught on, and there have been no commits there since 2018. So I decided to fork the project, modernise it, and maintain it. Really, the only real "modernisation" I did was replace the custom sequence expressions utilities with `clojure.spec.alpha`.
 
-The main difference is technical. `seqex` had to provide its own structural
-parser for Lisp forms. Panini does not. We have `clojure.spec.alpha` now, so
-Panini is mostly a thin layer over Spec for defining syntax, showing grammar,
-and compiling forms.
-
-The public namespace is `panini.core`.
+This fork is named after Pāṇini (\[päː.ɳi.n̪i]), the ancient Sanskrit grammarian whose Aṣṭādhyāyī (\[ɐʂʈaːd̪.d̪ʱjaːjiː]) is one of the earliest known formal systems for describing grammar, and is often compared to later notations such as BNF and EBNF.
 
 ## Example
 
@@ -79,8 +70,7 @@ Parse and compile a form:
 ;; (clojure.core/let [x 1 y 2] (+ x y))
 ```
 
-Invalid input returns `::panini/invalid` from `parse`, and either throws or
-returns `::panini/invalid` from `compile`:
+Invalid input returns `::panini/invalid` from `parse`, and either throws or returns `::panini/invalid` from `compile`:
 
 ```clojure
 (panini/parse '(my-let 42 (+ x y)))
@@ -96,5 +86,4 @@ Copyright (C) 2013 Jonathan Claggett
 
 Copyright (C) 2026 Rahul Goma Phulore
 
-Distributed under the Eclipse Public License v1.0. See `LICENSE` and
-`epl-v10.html`.
+Distributed under the Eclipse Public License v1.0. See `LICENSE` and `epl-v10.html`.
