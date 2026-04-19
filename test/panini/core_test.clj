@@ -4,6 +4,9 @@
             [clojure.test :refer :all]
             [panini.core :as panini :refer [define-rule define-syntax]]))
 
+(defn strip-ansi [s]
+  (str/replace s #"\u001b\[[0-9;]*m" ""))
+
 (define-rule binding-pair
   :doc "A single name/value binding."
   :grammar (s/cat :name symbol?
@@ -44,8 +47,8 @@
 (deftest definition-registration
   (is (panini/rule? binding-pair))
   (is (panini/syntax? #'my-let))
-  (is (contains? (set (map :symbol (panini/definitions)))
-                 'panini.core-test/route)))
+  (is (= :panini/rule (:kind binding-pair)))
+  (is (= :panini/syntax (:kind @#'route--syntax))))
 
 (deftest parsing-transform-and-expansion
   (is (= '(clojure.core/let [x 1 y 2] (+ x y))
@@ -67,18 +70,26 @@
   (is (true? (:macro (meta #'route)))))
 
 (deftest validation-and-errors
-  (is (panini/valid-syntax? #'defcommand
-                            '(deploy "Ship it" (run [:build]) (run [:release]))))
+  (is (= {:name 'deploy
+          :docstring "Ship it"
+          :clauses ['(run [:build]) '(run [:release])]}
+         (panini/parse '(defcommand deploy "Ship it" (run [:build]) (run [:release])))))
+  (is (= ::panini/invalid
+         (panini/parse '(route 42 "/users" handle-user))))
   (is (= ::panini/invalid
          (panini/compile '(route 42 "/users" handle-user)
                          {:on-error :invalid})))
-  (let [message (panini/explain-syntax #'route '(42 "/users" handle-user))]
-    (is (str/includes? message "Syntax did not match"))
-    (is (str/includes? message "Usage:"))
-    (is (str/includes? message "HTTP method, route path, and handler symbol."))))
+  (try
+    (panini/compile '(route 42 "/users" handle-user))
+    (is false "compile should throw on invalid input")
+    (catch clojure.lang.ExceptionInfo ex
+      (let [message (ex-message ex)]
+        (is (str/includes? message "Syntax did not match"))
+        (is (str/includes? message "Usage:"))
+        (is (str/includes? message "HTTP method, route path, and handler symbol."))))))
 
 (deftest rendered-docs
-  (let [doc (panini/syntax-doc #'my-let)]
+  (let [doc (strip-ansi (panini/pretty-grammar #'my-let))]
     (is (str/includes? doc "my-let =>"))
     (is (str/includes? doc "binding-pair"))
     (is (str/includes? doc "body:form+"))))
