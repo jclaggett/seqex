@@ -1,2 +1,9 @@
 *.iml
 /.idea
+.clj-kondo/
+.lsp/
+target/
+.lein-failures
+.lein-repl-history
+.nrepl-port
+.DS_Store
