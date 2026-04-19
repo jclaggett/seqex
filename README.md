@@ -4,11 +4,9 @@ Panini is a small Clojure library for defining macro syntax with
 `clojure.spec.alpha`.
 
 It comes out of Chris Houser and Jonathan Claggett's talk
-"Illuminated Macros":
+["Illuminated Macros"](https://www.youtube.com/watch?v=o75g9ZRoLaw).
 
-https://www.youtube.com/watch?v=o75g9ZRoLaw
-
-That talk was published on 2014-01-07, and it still feels right to me. Macros
+That talk was published on 2014.01.07, and it still feels right to me. Macros
 should not be mysterious. You should be able to see the grammar, get useful
 error messages, and understand what shape of input a macro expects.
 
@@ -19,12 +17,12 @@ the same basic idea alive.
 
 The main difference is technical. `seqex` had to provide its own structural
 parser for Lisp forms. Panini does not. We have `clojure.spec.alpha` now, so
-Panini is mostly a thin layer over Spec for defining syntax, reusing grammar
-fragments, rendering docs, and producing better syntax errors.
+Panini is mostly a thin layer over Spec for defining syntax, showing grammar,
+and compiling forms.
 
 The public namespace is `panini.core`.
 
-## One Example
+## Example
 
 ```clojure
 (require '[clojure.spec.alpha :as s])
@@ -47,11 +45,7 @@ The public namespace is `panini.core`.
                ~@body)))
 ```
 
-That one definition is enough to show most of the intended API.
-
-## Using It
-
-Identify what Panini registered:
+Inspect the grammar:
 
 ```clojure
 (panini/rule? binding-pair)
@@ -60,47 +54,23 @@ Identify what Panini registered:
 (panini/syntax? #'my-let)
 ;; true
 
-(panini/definitions)
-;; ({:kind :syntax/rule, ...}
-;;  {:kind :syntax/syntax, ...})
-
-(panini/find-definition 'my-let)
-;; {:kind :syntax/syntax, :symbol user/my-let, ...}
-
-(panini/macro-definition #'my-let)
-;; {:kind :syntax/syntax, :symbol user/my-let, ...}
-```
-
-Inspect the syntax itself:
-
-```clojure
-(panini/spec-form #'my-let)
+(panini/grammar #'my-let)
 ;; (s/cat :bindings (s/and vector? (s/spec (s/* :user/binding-pair)))
 ;;        :body (s/+ any?))
 
-(panini/render-spec (panini/spec-form #'my-let))
-;; "bindings:[binding-pair*] body:form+"
-
-(panini/syntax-doc #'my-let)
-;; "my-let => bindings:[binding-pair*] body:form+
-;; Bindings followed by one or more body forms."
+(println (panini/pretty-grammar #'my-let))
+;; prints a colourized grammar summary in the terminal
+;; my-let => bindings:[binding-pair*] body:form+
+;; Bindings followed by one or more body forms.
 ```
 
 Parse and compile a form:
 
 ```clojure
-(panini/valid-syntax? #'my-let '([x 1 y 2] (+ x y)))
-;; true
-
 (panini/parse '(my-let [x 1 y 2] (+ x y)))
 ;; {:bindings [{:name x, :value 1}
 ;;             {:name y, :value 2}],
 ;;  :body [(+ x y)]}
-
-(panini/transform-with-syntax
-  #'my-let
-  (panini/parse '(my-let [x 1 y 2] (+ x y))))
-;; (clojure.core/let [x 1 y 2] (+ x y))
 
 (panini/compile '(my-let [x 1 y 2] (+ x y)))
 ;; (clojure.core/let [x 1 y 2] (+ x y))
@@ -109,58 +79,16 @@ Parse and compile a form:
 ;; (clojure.core/let [x 1 y 2] (+ x y))
 ```
 
-See what happens on bad input:
+Invalid input returns `::panini/invalid` from `parse`, and either throws or
+returns `::panini/invalid` from `compile`:
 
 ```clojure
-(panini/valid-syntax? #'my-let '(42 (+ x y)))
-;; false
+(panini/parse '(my-let 42 (+ x y)))
+;; :panini.core/invalid
 
-(panini/explain-syntax-data #'my-let '(42 (+ x y)))
-;; {:syntax user/my-let, :usage "my-let => ...", :explain-data ...}
-
-(panini/explain-syntax #'my-let '(42 (+ x y)))
-;; "Syntax did not match user/my-let
-;;
-;; Bindings followed by one or more body forms.
-;;
-;; Usage:
-;;   my-let => bindings:[binding-pair*] body:form+
-;; ..."
+(panini/compile '(my-let 42 (+ x y)) {:on-error :invalid})
+;; :panini.core/invalid
 ```
-
-## API
-
-The intended user-facing functions are:
-
-- `define-rule`
-- `define-syntax`
-- `rule?`
-- `syntax?`
-- `definitions`
-- `find-definition`
-- `macro-definition`
-- `spec-form`
-- `render-spec`
-- `syntax-doc`
-- `valid-syntax?`
-- `parse`
-- `transform-with-syntax`
-- `compile`
-- `explain-syntax-data`
-- `explain-syntax`
-
-There are also a few lower-level names currently public, such as
-`compile-forms`, `register-definition!`, `rule-kind`, and `syntax-kind`. Those
-are not the main API and are not documented here as stable entry points.
-
-## Provenance
-
-Panini comes from Jonathan Claggett's `seqex`:
-
-https://github.com/jclaggett/seqex
-
-It is not the same implementation. It is a simpler rewrite built around
-`clojure.spec.alpha`.
 
 ## License
 
