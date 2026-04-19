@@ -49,15 +49,19 @@
 
 (deftest parsing-transform-and-expansion
   (is (= '(clojure.core/let [x 1 y 2] (+ x y))
-         (panini/parse-with-syntax #'my-let '([x 1 y 2] (+ x y)))))
+         (panini/compile '(my-let [x 1 y 2] (+ x y)))))
   (is (= '(def deploy {:name 'deploy
                        :doc "Ship it"
                        :clauses '((run [:build]) (run [:release]))})
-         (panini/parse-with-syntax #'defcommand '(deploy "Ship it" (run [:build]) (run [:release])))))
+         (panini/compile '(defcommand deploy "Ship it" (run [:build]) (run [:release])))))
   (is (= {:method :get
           :segments ["users" ":id"]
           :handler '(quote handle-user)}
-         (panini/parse-with-syntax #'route '(:get "/users/:id" handle-user))))
+         (panini/compile '(route :get "/users/:id" handle-user))))
+  (is (= {:bindings [{:name 'x :value 1}
+                     {:name 'y :value 2}]
+          :body ['(+ x y)]}
+         (panini/parse '(my-let [x 1 y 2] (+ x y)))))
   (is (true? (:macro (meta #'my-let))))
   (is (true? (:macro (meta #'defcommand))))
   (is (true? (:macro (meta #'route)))))
@@ -66,8 +70,8 @@
   (is (panini/valid-syntax? #'defcommand
                             '(deploy "Ship it" (run [:build]) (run [:release]))))
   (is (= ::panini/invalid
-         (panini/parse-with-syntax #'route '(42 "/users" handle-user)
-                                   {:on-error :invalid})))
+         (panini/compile '(route 42 "/users" handle-user)
+                         {:on-error :invalid})))
   (let [message (panini/explain-syntax #'route '(42 "/users" handle-user))]
     (is (str/includes? message "Syntax did not match"))
     (is (str/includes? message "Usage:"))

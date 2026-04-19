@@ -1,6 +1,7 @@
 (ns panini.core
   "Define syntax with plain clojure.spec.alpha forms, then layer on
   registration, docs, transform hooks, and friendlier error reporting."
+  (:refer-clojure :exclude [compile])
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as str]))
 
@@ -12,7 +13,9 @@
 (def rule-kind :syntax/rule)
 (def syntax-kind :syntax/syntax)
 
-(declare conform-with-syntax)
+(declare parse)
+(declare parse-forms)
+(declare compile-forms)
 (declare syntax-doc)
 
 (defn- unqualify-name [x]
@@ -55,6 +58,13 @@
   []
   (->> @registry* :by-var vals (sort-by :symbol)))
 
+(defn- unique-definition-by-name [sym]
+  (when (symbol? sym)
+    (let [matches (->> @registry* :by-var vals
+                       (filter #(= (name (:symbol %)) (name sym))))]
+      (when (= 1 (count matches))
+        (first matches)))))
+
 (defn find-definition
   "Resolve a definition from a var symbol, spec keyword, var, or definition map."
   [x]
@@ -66,7 +76,8 @@
                  value))
     (symbol? x) (or (get-in @registry* [:by-var x])
                     (when-let [v (resolve x)]
-                      (find-definition v)))
+                      (find-definition v))
+                    (unique-definition-by-name x))
     :else nil))
 
 (defn macro-definition
@@ -99,10 +110,10 @@
 (defn valid-syntax?
   "Return true when forms conform to the syntax definition."
   [syntax forms]
-  (not= invalid (conform-with-syntax syntax forms)))
+  (not= invalid (parse-forms syntax forms)))
 
-(defn conform-with-syntax
-  "Conform forms with a syntax definition. Returns ::invalid on failure."
+(defn- parse-forms
+  "Parse forms with a syntax definition. Returns ::invalid on failure."
   [syntax forms]
   (let [{:keys [name] :as definition} (or (find-definition syntax)
                                           (macro-definition syntax))]
@@ -110,6 +121,24 @@
       (throw (ex-info "Unknown syntax definition" {:value syntax})))
     (let [conformed (s/conform name forms)]
       (if (= ::s/invalid conformed) invalid conformed))))
+
+(defn- split-call-form [form]
+  (when-not (seq? form)
+    (throw (ex-info "Expected a non-empty list form" {:value form})))
+  (let [head (first form)
+        args (rest form)]
+    (when-not (symbol? head)
+      (throw (ex-info "Expected a symbol in call position" {:value form})))
+    [head args]))
+
+(defn parse
+  "Parse a syntax call form. Returns ::invalid on failure.
+
+  Example:
+    (parse '(my-let [x 1 y 2] (+ x y)))"
+  [form]
+  (let [[head args] (split-call-form form)]
+    (parse-forms head args)))
 
 (defn transform-with-syntax
   "Apply the syntax transform to conformed data."
@@ -127,7 +156,7 @@
                                                      (macro-definition syntax))]
     (when-not definition
       (throw (ex-info "Unknown syntax definition" {:value syntax})))
-    (when (= invalid (conform-with-syntax syntax forms))
+    (when (= invalid (parse-forms syntax forms))
       {:syntax symbol
        :name name
        :doc doc
@@ -151,21 +180,34 @@
        (with-out-str (s/explain name forms)))
       (str "Syntax matched " symbol "."))))
 
-(defn parse-with-syntax
-  "Conform forms and apply the syntax transform.
+(defn compile-forms
+  "Internal helper used by `define-syntax` macros.
+
+  Parse forms and apply the syntax transform.
 
   By default, throws ex-info when the forms do not conform.
   Pass {:on-error :invalid} to return ::invalid instead."
   ([syntax forms]
-   (parse-with-syntax syntax forms {}))
+   (compile-forms syntax forms {}))
   ([syntax forms {:keys [on-error] :or {on-error :throw}}]
-   (let [conformed (conform-with-syntax syntax forms)]
+   (let [conformed (parse-forms syntax forms)]
      (if (= invalid conformed)
        (if (= :invalid on-error)
          invalid
          (throw (ex-info (explain-syntax syntax forms)
                          (explain-syntax-data syntax forms))))
        (transform-with-syntax syntax conformed)))))
+
+(defn compile
+  "Compile a syntax call form by parsing it and applying the syntax transform.
+
+  Example:
+    (compile '(my-let [x 1 y 2] (+ x y)))"
+  ([form]
+   (compile form {}))
+  ([form opts]
+   (let [[head args] (split-call-form form)]
+     (compile-forms head args opts))))
 
 (defn spec-form
   "Return the quoted spec form originally used to define a rule or syntax."
@@ -360,66 +402,5 @@
        (s/fdef ~name :args ~definition-name)
        (defmacro ~(with-meta name {:syntax/definition-var (symbol (str (ns-name *ns*)) (str definition-symbol))})
          [& forms#]
-         (parse-with-syntax ~definition-symbol forms#))
+         (compile-forms ~definition-symbol forms#))
        (var ~name))))
-
-(comment
-  ;; Example 1: a tiny let-like syntax macro.
-
-  (define-rule binding-pair
-    :doc "A single name/value binding."
-    :grammar (s/cat :name symbol?
-                    :value any?))
-
-  (define-syntax my-let
-    :doc "Bindings followed by one or more body forms."
-    :grammar (s/cat :bindings (s/and vector?
-                                     (s/spec (s/* ::binding-pair)))
-                    :body (s/+ any?))
-    :target (fn [{:keys [bindings body]}]
-              `(let ~(vec (mapcat (fn [{:keys [name value]}]
-                                    [name value])
-                                  bindings))
-                 ~@body)))
-
-  (syntax-doc my-let)
-  ;; => "my-let => bindings:[binding-pair*] body:form+\nBindings followed by one or more body forms."
-
-  (macroexpand '(my-let [x 1 y 2] (+ x y)))
-  ;; => (let [x 1 y 2] (+ x y))
-
-
-  ;; Example 2: a command macro with a richer transform.
-
-  (define-syntax defcommand
-    :doc "A command name, optional docstring, and one or more clauses."
-    :grammar (s/cat :name symbol?
-                    :docstring (s/? string?)
-                    :clauses (s/+ list?))
-    :target (fn [{:keys [name docstring clauses]}]
-              `(def ~name
-                 {:name '~name
-                  :doc ~docstring
-                  :clauses '~clauses})))
-
-  (macroexpand '(defcommand deploy "Ship it" (run [:build]) (run [:release])))
-  ;; => (def deploy {:name 'deploy, :doc "Ship it", :clauses '((run [:build]) (run [:release]))})
-
-
-  ;; Example 3: a routing macro that compiles into plain data.
-
-  (define-syntax route
-    :doc "HTTP method, route path, and handler symbol."
-    :grammar (s/cat :method #{:get :post :put :delete}
-                    :path string?
-                    :handler symbol?)
-    :target (fn [{:keys [method path handler]}]
-              `{:method ~method
-                :segments ~(vec (remove str/blank? (str/split path #"/")))
-                :handler '~handler}))
-
-  (macroexpand '(route :get "/users/:id" handle-user))
-  ;; => {:method :get, :segments ["users" ":id"], :handler 'handle-user}
-
-  (println (explain-syntax route '(42 "/users" handle-user)))
-  )
