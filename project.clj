@@ -13,4 +13,4 @@
                  {:configuration {:source "25"
                                   :target "25"}}]]
 
-  :dependencies [[org.clojure/clojure "1.12.0"]])
+  :dependencies [[org.clojure/clojure "1.12.4"]])
