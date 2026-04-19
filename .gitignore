@@ -7,3 +7,5 @@ target/
 .lein-repl-history
 .nrepl-port
 .DS_Store
+pom.xml
+pom.xml.asc
