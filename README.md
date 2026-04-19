@@ -2,6 +2,8 @@
 
 <img src="assets/logo.png" width="270">
 
+[![Clojars Project](https://img.shields.io/clojars/v/london.rahul/panini.svg)](https://clojars.org/london.rahul/panini)
+
 Panini is a Clojure library for writing "illuminated macros" in Clojure.
 
 In a Clojure Conj 2013 talk, also named ["Illuminated Macros"](https://www.youtube.com/watch?v=o75g9ZRoLaw), Chris Houser and Jonathan Claggett argued that macros were essentially tiny languages/compilers, and as such, should:
