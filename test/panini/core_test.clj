@@ -61,7 +61,8 @@
           :segments ["users" ":id"]
           :handler '(quote handle-user)}
          (panini/compile '(route :get "/users/:id" handle-user))))
-  (is (= {:bindings [{:name 'x :value 1}
+  (is (= {:node ::my-let
+          :bindings [{:name 'x :value 1}
                      {:name 'y :value 2}]
           :body ['(+ x y)]}
          (panini/parse '(my-let [x 1 y 2] (+ x y)))))
@@ -70,7 +71,8 @@
   (is (true? (:macro (meta #'route)))))
 
 (deftest validation-and-errors
-  (is (= {:name 'deploy
+  (is (= {:node ::defcommand
+          :name 'deploy
           :docstring "Ship it"
           :clauses ['(run [:build]) '(run [:release])]}
          (panini/parse '(defcommand deploy "Ship it" (run [:build]) (run [:release])))))
