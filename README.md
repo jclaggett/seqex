@@ -61,7 +61,8 @@ Parse and compile a form:
 
 ```clojure
 (panini/parse '(my-let [x 1 y 2] (+ x y)))
-;; {:bindings [{:name x, :value 1}
+;; {:node :user/my-let,
+;;  :bindings [{:name x, :value 1}
 ;;             {:name y, :value 2}],
 ;;  :body [(+ x y)]}
 
