@@ -22,6 +22,22 @@
               (str "Expected keyword arguments, got " (pr-str args)))))
     opts))
 
+(defn- split-docstring [args]
+  (if (string? (first args))
+    [(first args) (next args)]
+    [nil args]))
+
+(defn- parse-rule-args [name args]
+  (let [[doc args] (split-docstring args)]
+    (when-not (= 1 (count args))
+      (throw (IllegalArgumentException.
+              (str "define-rule requires a single grammar form for " name))))
+    {:doc doc :grammar (first args)}))
+
+(defn- parse-syntax-args [args]
+  (let [[doc args] (split-docstring args)]
+    (assoc (parse-definition-args args) :doc doc)))
+
 (defn- spec-keyword [ns-sym name-sym]
   (keyword (str ns-sym) (str name-sym)))
 
@@ -121,7 +137,7 @@
       (cond-> conformed (map? conformed) (assoc :node name)))))
 
 (defn pretty-grammar
-  "Render a rule or syntax definition and its referenced grammar rules."
+  "Print a rule or syntax definition and its referenced grammar rules."
   [definition]
   (let [resolved (definition-of definition)]
     (when-not resolved
@@ -137,7 +153,7 @@
       {:syntax       symbol
        :name         name
        :doc          doc
-       :usage        (pretty-grammar syntax)
+       :usage        (pretty/grammar-summary find-definition definition)
        :forms        forms
        :explain-data (s/explain-data name forms)})))
 
@@ -191,12 +207,9 @@
 (defmacro define-rule
   "Define a named grammar fragment in plain Spec."
   [name & args]
-  (let [{:keys [doc grammar]} (parse-definition-args args)
+  (let [{:keys [doc grammar]} (parse-rule-args name args)
         definition-name       (spec-keyword (ns-name *ns*) name)
         definition-symbol     (symbol (str (ns-name *ns*)) (str name))]
-    (when-not grammar
-      (throw (IllegalArgumentException.
-              (str "define-rule requires :grammar for " name))))
     `(do
        (s/def ~definition-name ~grammar)
        (def ~name
@@ -211,7 +224,7 @@
 (defmacro define-syntax
   "Define a macro backed by a Spec grammar."
   [name & args]
-  (let [{:keys [doc grammar target]} (parse-definition-args args)
+  (let [{:keys [doc grammar target]} (parse-syntax-args args)
         definition-name              (spec-keyword (ns-name *ns*) name)
         macro-symbol                 (symbol (str (ns-name *ns*)) (str name))
         definition-symbol            (symbol (str name "--syntax"))

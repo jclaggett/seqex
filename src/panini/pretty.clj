@@ -201,7 +201,7 @@
   (when (and doc (not (default-doc? definition)))
     (colorize ansi-gray doc)))
 
-(defn pretty-grammar
+(defn grammar-summary
   "Render a resolved Panini definition and its referenced grammar rules."
   [find-definition definition]
   (let [definitions (reachable-definitions find-definition definition)
@@ -212,3 +212,8 @@
                          definitions))
      (when doc
        (str "\n" doc)))))
+
+(defn pretty-grammar
+  "Print a resolved Panini definition and its referenced grammar rules."
+  [find-definition definition]
+  (println (grammar-summary find-definition definition)))

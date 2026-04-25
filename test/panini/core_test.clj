@@ -7,13 +7,17 @@
 (defn strip-ansi [s]
   (str/replace s #"\u001b\[[0-9;]*m" ""))
 
+(defn pretty-output [definition]
+  (with-out-str
+    (is (nil? (panini/pretty-grammar definition)))))
+
 (define-rule binding-pair
-  :doc "A single name/value binding."
-  :grammar (s/cat :name symbol?
-                  :value any?))
+  "A single name/value binding."
+  (s/cat :name symbol?
+         :value any?))
 
 (define-syntax my-let
-  :doc "Bindings followed by one or more body forms."
+  "Bindings followed by one or more body forms."
   :grammar (s/cat :bindings (s/and vector?
                                    (s/spec (s/* ::binding-pair)))
                   :body (s/+ any?))
@@ -24,7 +28,7 @@
                ~@body)))
 
 (define-syntax defcommand
-  :doc "A command name, optional docstring, and one or more clauses."
+  "A command name, optional docstring, and one or more clauses."
   :grammar (s/cat :name symbol?
                   :docstring (s/? string?)
                   :clauses (s/+ list?))
@@ -35,7 +39,7 @@
                 :clauses '~clauses})))
 
 (define-syntax route
-  :doc "HTTP method, route path, and handler symbol."
+  "HTTP method, route path, and handler symbol."
   :grammar (s/cat :method #{:get :post :put :delete}
                   :path string?
                   :handler symbol?)
@@ -45,23 +49,23 @@
               :handler  '~handler}))
 
 (define-rule lookup
-  :grammar (s/map-of keyword? ::binding-pair))
+  (s/map-of keyword? ::binding-pair))
 
 (define-rule optional-symbol
-  :grammar (s/and symbol? #(not= % '&)))
+  (s/and symbol? #(not= % '&)))
 
 (define-rule pattern
-  :grammar symbol?)
+  symbol?)
 
 (define-rule seq-pattern
-  :grammar (s/and list?
-                  (s/spec
-                   (s/cat :_tag    #{:seq}
-                          :content (s/and vector?
-                                          (s/spec
-                                           (s/cat :elements (s/* ::pattern)
-                                                  :rest     (s/? (s/cat :amp #{'&}
-                                                                        :rest-pattern ::pattern)))))))))
+  (s/and list?
+         (s/spec
+          (s/cat :_tag    #{:seq}
+                 :content (s/and vector?
+                                 (s/spec
+                                  (s/cat :elements (s/* ::pattern)
+                                         :rest     (s/? (s/cat :amp #{'&}
+                                                               :rest-pattern ::pattern)))))))))
 
 (deftest definition-registration
   (is (panini/rule? binding-pair))
@@ -115,18 +119,18 @@
         (is (str/includes? message "HTTP method, route path, and handler symbol."))))))
 
 (deftest rendered-docs
-  (let [doc (strip-ansi (panini/pretty-grammar #'my-let))]
+  (let [doc (strip-ansi (pretty-output #'my-let))]
     (is (str/includes? doc "my-let =>"))
     (is (str/includes? doc "binding-pair =>"))
     (is (str/includes? doc "binding-pair"))
     (is (str/includes? doc "[binding-pair*] form+"))))
 
 (deftest rendered-spec-helpers
-  (is (str/includes? (strip-ansi (panini/pretty-grammar lookup))
+  (is (str/includes? (strip-ansi (pretty-output lookup))
                      "lookup => {keyword binding-pair}*"))
-  (is (str/includes? (strip-ansi (panini/pretty-grammar optional-symbol))
+  (is (str/includes? (strip-ansi (pretty-output optional-symbol))
                      "optional-symbol => symbol"))
-  (is (str/includes? (strip-ansi (panini/pretty-grammar seq-pattern))
+  (is (str/includes? (strip-ansi (pretty-output seq-pattern))
                      "seq-pattern => (:seq [pattern* (& pattern)?])")))
 
 (deftest invalid-syntax-usage-includes-referenced-rules

@@ -22,12 +22,12 @@ This fork is named after Pāṇini (\[päː.ɳi.n̪i]), the ancient Sanskrit gra
 (require '[panini.core :as panini :refer [define-rule define-syntax]])
 
 (define-rule binding-pair
-  :doc "A single name/value binding."
-  :grammar (s/cat :name symbol?
-                  :value any?))
+  "A single name/value binding."
+  (s/cat :name symbol?
+         :value any?))
 
 (define-syntax my-let
-  :doc "Bindings followed by one or more body forms."
+  "Bindings followed by one or more body forms."
   :grammar (s/cat :bindings (s/and vector?
                                    (s/spec (s/* ::binding-pair)))
                   :body (s/+ any?))
@@ -51,7 +51,7 @@ Inspect the grammar:
 ;; (s/cat :bindings (s/and vector? (s/spec (s/* :user/binding-pair)))
 ;;        :body (s/+ any?))
 
-(println (panini/pretty-grammar #'my-let))
+(panini/pretty-grammar #'my-let)
 ;; prints a colourized grammar summary in the terminal
 ;;       my-let => [binding-pair*] form+
 ;; binding-pair => symbol form
