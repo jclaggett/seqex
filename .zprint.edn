@@ -1,0 +1,3 @@
+{:map     {:justify? true}
+ :binding {:justify? true}
+ :pair    {:justify? true}}

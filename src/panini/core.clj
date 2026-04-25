@@ -121,9 +121,9 @@
 (defn parse
   "Parse a syntax call form. Returns ::invalid on failure."
   [form]
-  (let [[head args] (split-call-form form)
+  (let [[head args]    (split-call-form form)
         {:keys [name]} (definition-of head)
-        conformed (parse-forms head args)]
+        conformed      (parse-forms head args)]
     (if (= invalid conformed)
       invalid
       (cond-> conformed (map? conformed) (assoc :node name)))))
@@ -149,22 +149,22 @@
 (declare ^:private render-grammar)
 
 (def ^:private predicate-labels
-  {'any? "form"
-   'some? "form"
-   'symbol? "symbol"
-   'simple-symbol? "symbol"
-   'string? "string"
-   'keyword? "keyword"
+  {'any?            "form"
+   'some?           "form"
+   'symbol?         "symbol"
+   'simple-symbol?  "symbol"
+   'string?         "string"
+   'keyword?        "keyword"
    'simple-keyword? "keyword"
-   'vector? "vector"
-   'list? "list"
-   'seq? "seq"
-   'map? "map"
-   'set? "set"
-   'boolean? "boolean"
-   'int? "int"
-   'integer? "int"
-   'number? "number"})
+   'vector?         "vector"
+   'list?           "list"
+   'seq?            "seq"
+   'map?            "map"
+   'set?            "set"
+   'boolean?        "boolean"
+   'int?            "int"
+   'integer?        "int"
+   'number?         "number"})
 
 (defn- render-set [xs]
   (if (= 1 (count xs))
@@ -254,7 +254,8 @@
 (defn pretty-grammar
   "Render a rule or syntax definition as a compact usage string."
   [definition]
-  (let [{:keys [doc spec symbol] :as resolved} (definition-of definition)]
+  (let [{:keys [doc spec symbol]
+         :as   resolved}          (definition-of definition)]
     (when-not resolved
       (throw (ex-info "Unknown syntax definition" {:value definition})))
     (str
@@ -267,19 +268,21 @@
        (str "\n" (colorize ansi-gray doc))))))
 
 (defn- explain-data [syntax forms]
-  (let [{:keys [doc name symbol] :as definition} (definition-of syntax)]
+  (let [{:keys [doc name symbol]
+         :as   definition}       (definition-of syntax)]
     (when-not definition
       (throw (ex-info "Unknown syntax definition" {:value syntax})))
     (when (= invalid (parse-forms syntax forms))
-      {:syntax symbol
-       :name name
-       :doc doc
-       :usage (pretty-grammar syntax)
-       :forms forms
+      {:syntax       symbol
+       :name         name
+       :doc          doc
+       :usage        (pretty-grammar syntax)
+       :forms        forms
        :explain-data (s/explain-data name forms)})))
 
 (defn- explain-message [syntax forms]
-  (let [{:keys [doc symbol name] :as definition} (definition-of syntax)]
+  (let [{:keys [doc symbol name]
+         :as   definition}       (definition-of syntax)]
     (when-not definition
       (throw (ex-info "Unknown syntax definition" {:value syntax})))
     (if-let [data (explain-data syntax forms)]
@@ -294,8 +297,9 @@
 (defn- compile-forms
   ([syntax forms]
    (compile-forms syntax forms {}))
-  ([syntax forms {:keys [on-error] :or {on-error :throw}}]
-   (let [conformed (parse-forms syntax forms)
+  ([syntax forms {:keys [on-error]
+                  :or   {on-error :throw}}]
+   (let [conformed  (parse-forms syntax forms)
          definition (definition-of syntax)]
      (if (= invalid conformed)
        (if (= :invalid on-error)
@@ -313,7 +317,7 @@
    (compile form {}))
   ([form opts]
    (let [[head args] (split-call-form form)
-         result (compile-forms head args opts)]
+         result      (compile-forms head args opts)]
      (if (= invalid result)
        invalid
        result))))
@@ -322,19 +326,19 @@
   "Define a named grammar fragment in plain Spec."
   [name & args]
   (let [{:keys [doc grammar]} (parse-definition-args args)
-        definition-name (spec-keyword (ns-name *ns*) name)
-        definition-symbol (symbol (str (ns-name *ns*)) (str name))]
+        definition-name       (spec-keyword (ns-name *ns*) name)
+        definition-symbol     (symbol (str (ns-name *ns*)) (str name))]
     (when-not grammar
       (throw (IllegalArgumentException.
               (str "define-rule requires :grammar for " name))))
     `(do
        (s/def ~definition-name ~grammar)
        (def ~name
-         {:kind ~rule-kind
-          :symbol '~definition-symbol
-          :name ~definition-name
-          :spec '~grammar
-          :doc ~(or doc (str "Rule " name "."))
+         {:kind      ~rule-kind
+          :symbol    '~definition-symbol
+          :name      ~definition-name
+          :spec      '~grammar
+          :doc       ~(or doc (str "Rule " name "."))
           :transform identity})
        (var ~name))))
 
@@ -342,23 +346,23 @@
   "Define a macro backed by a Spec grammar."
   [name & args]
   (let [{:keys [doc grammar target]} (parse-definition-args args)
-        definition-name (spec-keyword (ns-name *ns*) name)
-        macro-symbol (symbol (str (ns-name *ns*)) (str name))
-        definition-symbol (symbol (str name "--syntax"))
-        transform (or target identity)]
+        definition-name              (spec-keyword (ns-name *ns*) name)
+        macro-symbol                 (symbol (str (ns-name *ns*)) (str name))
+        definition-symbol            (symbol (str name "--syntax"))
+        transform                    (or target identity)]
     (when-not grammar
       (throw (IllegalArgumentException.
               (str "define-syntax requires :grammar for " name))))
     `(do
        (s/def ~definition-name ~grammar)
        (def ~definition-symbol
-         {:kind ~syntax-kind
-          :symbol '~macro-symbol
+         {:kind              ~syntax-kind
+          :symbol            '~macro-symbol
           :definition-symbol '~(symbol (str (ns-name *ns*)) (str definition-symbol))
-          :name ~definition-name
-          :spec '~grammar
-          :doc ~(or doc (str "Syntax " name "."))
-          :transform ~transform})
+          :name              ~definition-name
+          :spec              '~grammar
+          :doc               ~(or doc (str "Syntax " name "."))
+          :transform         ~transform})
        (s/fdef ~name :args ~definition-name)
        (defmacro ~(with-meta name {:syntax/definition-var (symbol (str (ns-name *ns*)) (str definition-symbol))})
          [& forms#]

@@ -30,8 +30,8 @@
                   :clauses (s/+ list?))
   :target (fn [{:keys [name docstring clauses]}]
             `(def ~name
-               {:name '~name
-                :doc ~docstring
+               {:name    '~name
+                :doc     ~docstring
                 :clauses '~clauses})))
 
 (define-syntax route
@@ -40,9 +40,9 @@
                   :path string?
                   :handler symbol?)
   :target (fn [{:keys [method path handler]}]
-            `{:method ~method
+            `{:method   ~method
               :segments ~(vec (remove str/blank? (str/split path #"/")))
-              :handler '~handler}))
+              :handler  '~handler}))
 
 (deftest definition-registration
   (is (panini/rule? binding-pair))
@@ -53,28 +53,30 @@
 (deftest parsing-transform-and-expansion
   (is (= '(clojure.core/let [x 1 y 2] (+ x y))
          (panini/compile '(my-let [x 1 y 2] (+ x y)))))
-  (is (= '(def deploy {:name 'deploy
-                       :doc "Ship it"
+  (is (= '(def deploy {:name    'deploy
+                       :doc     "Ship it"
                        :clauses '((run [:build]) (run [:release]))})
          (panini/compile '(defcommand deploy "Ship it" (run [:build]) (run [:release])))))
-  (is (= {:method :get
+  (is (= {:method   :get
           :segments ["users" ":id"]
-          :handler '(quote handle-user)}
+          :handler  '(quote handle-user)}
          (panini/compile '(route :get "/users/:id" handle-user))))
-  (is (= {:node ::my-let
-          :bindings [{:name 'x :value 1}
-                     {:name 'y :value 2}]
-          :body ['(+ x y)]}
+  (is (= {:node     ::my-let
+          :bindings [{:name  'x 
+                      :value 1}
+                     {:name  'y 
+                      :value 2}]
+          :body     ['(+ x y)]}
          (panini/parse '(my-let [x 1 y 2] (+ x y)))))
   (is (true? (:macro (meta #'my-let))))
   (is (true? (:macro (meta #'defcommand))))
   (is (true? (:macro (meta #'route)))))
 
 (deftest validation-and-errors
-  (is (= {:node ::defcommand
-          :name 'deploy
+  (is (= {:node      ::defcommand
+          :name      'deploy
           :docstring "Ship it"
-          :clauses ['(run [:build]) '(run [:release])]}
+          :clauses   ['(run [:build]) '(run [:release])]}
          (panini/parse '(defcommand deploy "Ship it" (run [:build]) (run [:release])))))
   (is (= ::panini/invalid
          (panini/parse '(route 42 "/users" handle-user))))
