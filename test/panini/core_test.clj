@@ -50,6 +50,19 @@
 (define-rule optional-symbol
   :grammar (s/and symbol? #(not= % '&)))
 
+(define-rule pattern
+  :grammar symbol?)
+
+(define-rule seq-pattern
+  :grammar (s/and list?
+                  (s/spec
+                   (s/cat :_tag    #{:seq}
+                          :content (s/and vector?
+                                          (s/spec
+                                           (s/cat :elements (s/* ::pattern)
+                                                  :rest     (s/? (s/cat :amp #{'&}
+                                                                        :rest-pattern ::pattern)))))))))
+
 (deftest definition-registration
   (is (panini/rule? binding-pair))
   (is (panini/syntax? #'my-let))
@@ -106,13 +119,15 @@
     (is (str/includes? doc "my-let =>"))
     (is (str/includes? doc "binding-pair =>"))
     (is (str/includes? doc "binding-pair"))
-    (is (str/includes? doc "body:form+"))))
+    (is (str/includes? doc "[binding-pair*] form+"))))
 
 (deftest rendered-spec-helpers
   (is (str/includes? (strip-ansi (panini/pretty-grammar lookup))
                      "lookup => {keyword binding-pair}*"))
   (is (str/includes? (strip-ansi (panini/pretty-grammar optional-symbol))
-                     "optional-symbol => symbol & predicate")))
+                     "optional-symbol => symbol"))
+  (is (str/includes? (strip-ansi (panini/pretty-grammar seq-pattern))
+                     "seq-pattern => (:seq [pattern* (& pattern)?])")))
 
 (deftest invalid-syntax-usage-includes-referenced-rules
   (try
