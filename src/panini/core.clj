@@ -162,6 +162,7 @@
    'map?            "map"
    'set?            "set"
    'boolean?        "boolean"
+   'nil?            "nil"
    'int?            "int"
    'integer?        "int"
    'number?         "number"})
@@ -243,29 +244,73 @@
       *   (str (grouped (render-grammar (second form))) "*")
       +   (str (grouped (render-grammar (second form))) "+")
       and (render-and (rest form))
+      map-of (str "{" (render-grammar (second form)) " " (render-grammar (nth form 2)) "}*")
       spec (render-grammar (second form))
       tuple (str "[" (str/join " " (map render-grammar (rest form))) "]")
       nilable (str (grouped (render-grammar (second form))) "?")
+      fn* (colorize ansi-cyan "predicate")
       (pr-str form))
 
     :else
     (pr-str form)))
 
-(defn pretty-grammar
-  "Render a rule or syntax definition as a compact usage string."
-  [definition]
-  (let [{:keys [doc spec symbol]
-         :as   resolved}          (definition-of definition)]
-    (when-not resolved
+(defn- walk-grammar [form]
+  (tree-seq
+   (fn [x]
+     (or (seq? x)
+         (vector? x)
+         (map? x)
+         (set? x)))
+   (fn [x]
+     (cond
+       (map? x)     (mapcat identity x)
+       (set? x)     (sort-by pr-str x)
+       (seqable? x) x
+       :else        nil))
+   form))
+
+(defn- grammar-references [form]
+  (->> (walk-grammar form)
+       (keep find-definition)
+       (distinct)))
+
+(defn- reachable-definitions [definition]
+  (let [root (definition-of definition)
+        seen (atom #{})]
+    (when-not root
       (throw (ex-info "Unknown syntax definition" {:value definition})))
+    (letfn [(visit [{:keys [name spec] :as resolved}]
+              (when-not (@seen name)
+                (swap! seen conj name)
+                (cons resolved (mapcat visit (grammar-references spec)))))]
+      (visit root))))
+
+(defn- pad-left [width s]
+  (str (apply str (repeat (max 0 (- width (count s))) " ")) s))
+
+(defn- definition-line [width {:keys [spec symbol]}]
+  (let [symbol-name (name symbol)]
     (str
-     (colorize ansi-green (name symbol))
+     (colorize ansi-green (pad-left width symbol-name))
      " "
      (colorize ansi-blue "=>")
      " "
-     (render-grammar spec)
+     (render-grammar spec))))
+
+(defn- definition-doc [{:keys [doc]}]
+  (when doc
+    (colorize ansi-gray doc)))
+
+(defn pretty-grammar
+  "Render a rule or syntax definition and its referenced grammar rules."
+  [definition]
+  (let [definitions (reachable-definitions definition)
+        name-width  (apply max (map (comp count name :symbol) definitions))
+        doc         (definition-doc (first definitions))]
+    (str
+     (str/join "\n" (map (partial definition-line name-width) definitions))
      (when doc
-       (str "\n" (colorize ansi-gray doc))))))
+       (str "\n" doc)))))
 
 (defn- explain-data [syntax forms]
   (let [{:keys [doc name symbol]
@@ -280,6 +325,11 @@
        :forms        forms
        :explain-data (s/explain-data name forms)})))
 
+(defn- indent-lines [s]
+  (->> (str/split-lines s)
+       (map #(str "  " %))
+       (str/join "\n")))
+
 (defn- explain-message [syntax forms]
   (let [{:keys [doc symbol name]
          :as   definition}       (definition-of syntax)]
@@ -289,7 +339,7 @@
       (str
        "Syntax did not match " symbol
        (when doc (str "\n\n" doc))
-       "\n\nUsage:\n  " (:usage data)
+       "\n\nUsage:\n" (indent-lines (:usage data))
        "\n\nSpec explain:\n"
        (with-out-str (s/explain name forms)))
       (str "Syntax matched " symbol "."))))
