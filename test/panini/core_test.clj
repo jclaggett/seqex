@@ -44,6 +44,12 @@
               :segments ~(vec (remove str/blank? (str/split path #"/")))
               :handler  '~handler}))
 
+(define-rule lookup
+  :grammar (s/map-of keyword? ::binding-pair))
+
+(define-rule optional-symbol
+  :grammar (s/and symbol? #(not= % '&)))
+
 (deftest definition-registration
   (is (panini/rule? binding-pair))
   (is (panini/syntax? #'my-let))
@@ -98,8 +104,25 @@
 (deftest rendered-docs
   (let [doc (strip-ansi (panini/pretty-grammar #'my-let))]
     (is (str/includes? doc "my-let =>"))
+    (is (str/includes? doc "binding-pair =>"))
     (is (str/includes? doc "binding-pair"))
     (is (str/includes? doc "body:form+"))))
+
+(deftest rendered-spec-helpers
+  (is (str/includes? (strip-ansi (panini/pretty-grammar lookup))
+                     "lookup => {keyword binding-pair}*"))
+  (is (str/includes? (strip-ansi (panini/pretty-grammar optional-symbol))
+                     "optional-symbol => symbol & predicate")))
+
+(deftest invalid-syntax-usage-includes-referenced-rules
+  (try
+    (panini/compile '(my-let 42 (+ x y)))
+    (is false "compile should throw on invalid input")
+    (catch clojure.lang.ExceptionInfo ex
+      (let [message (strip-ansi (ex-message ex))]
+        (is (str/includes? message "Usage:"))
+        (is (str/includes? message "my-let =>"))
+        (is (str/includes? message "binding-pair =>"))))))
 
 (deftest define-syntax-registers-macro-args-spec
   (is (some? (s/get-spec 'panini.core-test/defcommand))))
