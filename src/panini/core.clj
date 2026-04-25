@@ -2,22 +2,14 @@
   "Define syntax with plain clojure.spec.alpha forms."
   (:refer-clojure :exclude [compile])
   (:require [clojure.spec.alpha :as s]
-            [clojure.string :as str]))
+            [clojure.string :as str]
+            [panini.pretty :as pretty]))
 
 (def ^:private invalid ::invalid)
 (def ^:private rule-kind :panini/rule)
 (def ^:private syntax-kind :panini/syntax)
 
 (declare pretty-grammar)
-
-(def ^:private ansi-reset "\u001b[0m")
-(def ^:private ansi-green "\u001b[32m")
-(def ^:private ansi-cyan "\u001b[36m")
-(def ^:private ansi-blue "\u001b[34m")
-(def ^:private ansi-gray "\u001b[90m")
-
-(defn- colorize [ansi s]
-  (str ansi s ansi-reset))
 
 (defn- parse-definition-args [args]
   (when (odd? (count args))
@@ -128,189 +120,13 @@
       invalid
       (cond-> conformed (map? conformed) (assoc :node name)))))
 
-(defn- spec-ref-label [x]
-  (if-let [definition (find-definition x)]
-    (some-> definition :symbol name)
-    (name x)))
-
-(defn- unqualify-name [x]
-  (cond
-    (keyword? x) (name x)
-    (symbol? x) (name x)
-    :else (str x)))
-
-(defn- spec-op [form]
-  (when (seq? form)
-    (some-> form first unqualify-name symbol)))
-
-(defn- spec-op= [form op]
-  (= (spec-op form) op))
-
-(declare ^:private render-grammar)
-
-(def ^:private predicate-labels
-  {'any?            "form"
-   'some?           "form"
-   'symbol?         "symbol"
-   'simple-symbol?  "symbol"
-   'string?         "string"
-   'keyword?        "keyword"
-   'simple-keyword? "keyword"
-   'vector?         "vector"
-   'list?           "list"
-   'seq?            "seq"
-   'map?            "map"
-   'set?            "set"
-   'boolean?        "boolean"
-   'nil?            "nil"
-   'int?            "int"
-   'integer?        "int"
-   'number?         "number"})
-
-(defn- render-set [xs]
-  (if (= 1 (count xs))
-    (render-grammar (first xs))
-    (str "(" (str/join " | " (map render-grammar xs)) ")")))
-
-(defn- named-entry [label rendered]
-  (if (or (nil? label)
-          (= "_" (name label))
-          (= (name label) rendered))
-    rendered
-    (str (colorize ansi-green (name label)) ":" rendered)))
-
-(defn- grouped [rendered]
-  (if (or (str/includes? rendered " ")
-          (str/includes? rendered " | "))
-    (str "(" rendered ")")
-    rendered))
-
-(defn- render-cat [args]
-  (->> (partition 2 args)
-       (map (fn [[label form]]
-              (named-entry label (render-grammar form))))
-       (str/join " ")))
-
-(defn- render-alt [args]
-  (->> (partition 2 args)
-       (map (fn [[label form]]
-              (named-entry label (render-grammar form))))
-       (str/join (colorize ansi-gray " | "))))
-
-(defn- render-and [args]
-  (let [[first-arg second-arg & rest-args] args]
-    (cond
-      (and (= 2 (count args))
-           (= 'vector? first-arg)
-           (spec-op= second-arg 'spec))
-      (str "[" (render-grammar (second second-arg)) "]")
-
-      (and (= 2 (count args))
-           (= 'list? first-arg)
-           (spec-op= second-arg 'spec))
-      (str "(" (render-grammar (second second-arg)) ")")
-
-      (and (= 2 (count args))
-           (= 'map? first-arg)
-           (spec-op= second-arg 'spec))
-      (str "{" (render-grammar (second second-arg)) "}")
-
-      :else
-      (str/join " & " (map render-grammar (cons first-arg (cons second-arg rest-args)))))))
-
-(defn- render-grammar [form]
-  (cond
-    (keyword? form)
-    (if (namespace form)
-      (colorize ansi-green (spec-ref-label form))
-      (colorize ansi-green (str form)))
-
-    (symbol? form)
-    (colorize ansi-cyan
-              (or (get predicate-labels form)
-                  (if-let [definition (find-definition form)]
-                    (name (:symbol definition))
-                    (name form))))
-
-    (set? form)
-    (render-set (sort-by pr-str form))
-
-    (seq? form)
-    (case (spec-op form)
-      cat (render-cat (rest form))
-      alt (render-alt (rest form))
-      or  (render-alt (rest form))
-      ?   (str (grouped (render-grammar (second form))) "?")
-      *   (str (grouped (render-grammar (second form))) "*")
-      +   (str (grouped (render-grammar (second form))) "+")
-      and (render-and (rest form))
-      map-of (str "{" (render-grammar (second form)) " " (render-grammar (nth form 2)) "}*")
-      spec (render-grammar (second form))
-      tuple (str "[" (str/join " " (map render-grammar (rest form))) "]")
-      nilable (str (grouped (render-grammar (second form))) "?")
-      fn* (colorize ansi-cyan "predicate")
-      (pr-str form))
-
-    :else
-    (pr-str form)))
-
-(defn- walk-grammar [form]
-  (tree-seq
-   (fn [x]
-     (or (seq? x)
-         (vector? x)
-         (map? x)
-         (set? x)))
-   (fn [x]
-     (cond
-       (map? x)     (mapcat identity x)
-       (set? x)     (sort-by pr-str x)
-       (seqable? x) x
-       :else        nil))
-   form))
-
-(defn- grammar-references [form]
-  (->> (walk-grammar form)
-       (keep find-definition)
-       (distinct)))
-
-(defn- reachable-definitions [definition]
-  (let [root (definition-of definition)
-        seen (atom #{})]
-    (when-not root
-      (throw (ex-info "Unknown syntax definition" {:value definition})))
-    (letfn [(visit [{:keys [name spec] :as resolved}]
-              (when-not (@seen name)
-                (swap! seen conj name)
-                (cons resolved (mapcat visit (grammar-references spec)))))]
-      (visit root))))
-
-(defn- pad-left [width s]
-  (str (apply str (repeat (max 0 (- width (count s))) " ")) s))
-
-(defn- definition-line [width {:keys [spec symbol]}]
-  (let [symbol-name (name symbol)]
-    (str
-     (colorize ansi-green (pad-left width symbol-name))
-     " "
-     (colorize ansi-blue "=>")
-     " "
-     (render-grammar spec))))
-
-(defn- definition-doc [{:keys [doc]}]
-  (when doc
-    (colorize ansi-gray doc)))
-
 (defn pretty-grammar
   "Render a rule or syntax definition and its referenced grammar rules."
   [definition]
-  (let [definitions (reachable-definitions definition)
-        name-width  (apply max (map (comp count name :symbol) definitions))
-        doc         (definition-doc (first definitions))]
-    (str
-     (str/join "\n" (map (partial definition-line name-width) definitions))
-     (when doc
-       (str "\n" doc)))))
+  (let [resolved (definition-of definition)]
+    (when-not resolved
+      (throw (ex-info "Unknown syntax definition" {:value definition})))
+    (pretty/pretty-grammar find-definition resolved)))
 
 (defn- explain-data [syntax forms]
   (let [{:keys [doc name symbol]

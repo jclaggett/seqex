@@ -53,8 +53,8 @@ Inspect the grammar:
 
 (println (panini/pretty-grammar #'my-let))
 ;; prints a colourized grammar summary in the terminal
-;; my-let => bindings:[binding-pair*] body:form+
-;; binding-pair => name:symbol value:form
+;;       my-let => [binding-pair*] form+
+;; binding-pair => symbol form
 ;; Bindings followed by one or more body forms.
 ```
 
