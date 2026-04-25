@@ -122,10 +122,11 @@
   "Parse a syntax call form. Returns ::invalid on failure."
   [form]
   (let [[head args] (split-call-form form)
+        {:keys [name]} (definition-of head)
         conformed (parse-forms head args)]
     (if (= invalid conformed)
       invalid
-      conformed)))
+      (cond-> conformed (map? conformed) (assoc :node name)))))
 
 (defn- spec-ref-label [x]
   (if-let [definition (find-definition x)]
