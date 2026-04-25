@@ -61,6 +61,9 @@
           :segments ["users" ":id"]
           :handler  '(quote handle-user)}
          (panini/compile '(route :get "/users/:id" handle-user))))
+  (is (= '(clojure.core/let [x 1] x)
+         (binding [*ns* (the-ns 'user)]
+           (macroexpand-1 '(panini.core-test/my-let [x 1] x)))))
   (is (= {:node     ::my-let
           :bindings [{:name  'x 
                       :value 1}

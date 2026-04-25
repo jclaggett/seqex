@@ -1,4 +1,4 @@
-(defproject london.rahul/panini "0.2.0"
+(defproject london.rahul/panini "0.3.0"
   :description "Define Clojure macro syntax with clojure.spec.alpha."
   :license {:name         "Eclipse Public License - v 1.0"
             :url          "http://www.eclipse.org/legal/epl-v10.html"

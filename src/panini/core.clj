@@ -366,5 +366,5 @@
        (s/fdef ~name :args ~definition-name)
        (defmacro ~(with-meta name {:syntax/definition-var (symbol (str (ns-name *ns*)) (str definition-symbol))})
          [& forms#]
-         (compile (list* '~name forms#)))
+         (compile (list* '~macro-symbol forms#)))
        (var ~name))))
